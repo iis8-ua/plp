@@ -3,8 +3,25 @@
 from rest_framework import status
 from rest_framework.response import Response
 
+from . import mocks
+
 # Cualquier token no vacío se acepta como válido, salvo estos dos (para probar el 401).
 INVALID_TOKENS = {"invalid", "expired"}
+
+TOKEN_PREFIX = "mock-token-"
+
+
+def _bearer_token(request):
+    header = request.headers.get("Authorization", "")
+    return header[7:].strip() if header.startswith("Bearer ") else ""
+
+
+def current_user(request):
+    """Resuelve el usuario a partir de `mock-token-<usuario>`, o None."""
+    token = _bearer_token(request)
+    if not token.startswith(TOKEN_PREFIX):
+        return None
+    return mocks.MOCK_USERS.get(token[len(TOKEN_PREFIX):], {}).get("user")
 
 
 def error_response(code, message, http_status):
@@ -14,8 +31,7 @@ def error_response(code, message, http_status):
 
 def bearer_guard(request):
     """Devuelve una Response 401 si falta el Bearer, o None si es válido."""
-    header = request.headers.get("Authorization", "")
-    token = header[7:].strip() if header.startswith("Bearer ") else ""
+    token = _bearer_token(request)
     if not token or token.lower() in INVALID_TOKENS:
         return error_response(
             "UNAUTHORIZED",

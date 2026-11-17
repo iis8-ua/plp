@@ -50,6 +50,11 @@ paths:
                 token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
                 token_type: Bearer
                 expires_in: 3600
+                user:
+                  id: usr_tpv01
+                  name: Laura Martínez
+                  role: tecnico
+                  subtitle: Técnica de soporte
         "400":
           description: No se ha indicado el parámetro `user` o la petición está mal formada.
           content:
@@ -104,12 +109,13 @@ paths:
         - Caja
       summary: Retirar dinero del saldo de la empresa
       description: |
-        Resta `amount` del saldo de la empresa autenticada. Un importe mal escrito o superior
-        al saldo disponible produce un 400.
+        Resta `amount` del saldo de la moneda indicada en `currency` (EUR por defecto).
+        Un importe mal escrito o superior al saldo disponible de esa moneda produce un 400.
       security:
         - bearerAuth: []
       parameters:
         - $ref: "#/components/parameters/Amount"
+        - $ref: "#/components/parameters/Currency"
       responses:
         "200":
           description: Todo correcto; retirada realizada.
@@ -217,6 +223,14 @@ paths:
       security: []
       parameters:
         - $ref: "#/components/parameters/TransactionId"
+        - name: reason
+          in: query
+          required: false
+          description: Motivo indicado por el comercio al solicitar la devolución.
+          schema:
+            type: string
+            maxLength: 200
+          example: El cliente solicita devolver los artículos del pedido.
       responses:
         "202":
           description: Todo correcto; solicitud de reembolso aceptada para procesamiento.
@@ -320,7 +334,39 @@ paths:
     delete:
       tags:
         - Empresas
-      summary: Eliminar una empresa (sólo administrador)
+      summary: Dar de baja una empresa (sólo administrador)
+      description: |
+        Baja lógica: la empresa deja de estar activa pero conserva su histórico.
+        Operación restringida al rol de administrador.
+      x-required-role: admin
+      security:
+        - adminAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CompanyId"
+      responses:
+        "200":
+          description: Todo correcto; empresa dada de baja.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Company"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: El `id` no existe o está mal formado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: COMPANY_NOT_FOUND
+                message: La empresa indicada no existe o su identificador no es válido.
+
+  /companies/reactivate:
+    put:
+      tags:
+        - Empresas
+      summary: Reactivar una empresa dada de baja (sólo administrador)
       description: Operación restringida al rol de administrador.
       x-required-role: admin
       security:
@@ -329,15 +375,22 @@ paths:
         - $ref: "#/components/parameters/CompanyId"
       responses:
         "200":
-          description: Todo correcto; empresa eliminada.
+          description: Todo correcto; empresa reactivada.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Message"
-              example:
-                message: Empresa eliminada correctamente.
+                $ref: "#/components/schemas/Company"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "404":
+          description: El `id` no existe o está mal formado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: COMPANY_NOT_FOUND
+                message: La empresa indicada no existe o su identificador no es válido.
 
   /companies:
     get:
@@ -395,14 +448,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/TicketRequest"
+              $ref: "#/components/schemas/TicketCreateRequest"
       responses:
         "200":
           description: Todo correcto; ticket añadido.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TicketMutationResponse"
+                $ref: "#/components/schemas/Ticket"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -431,6 +484,52 @@ paths:
         "403":
           $ref: "#/components/responses/Forbidden"
 
+  /ticket/message:
+    post:
+      tags:
+        - Tickets
+      summary: Añadir un mensaje a la conversación del ticket
+      description: |
+        Añade un mensaje del usuario autenticado a la conversación del ticket. El autor y su
+        rol se resuelven a partir del token. Un comercio solo puede escribir en sus tickets.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/TicketId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - message
+              properties:
+                message:
+                  type: string
+                  maxLength: 1000
+                  example: Gracias, todo aclarado.
+      responses:
+        "200":
+          description: Todo correcto; ticket con el mensaje añadido.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ticket"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: El `id` no existe o no pertenece al comercio autenticado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: TICKET_NOT_FOUND
+                message: El ticket indicado no existe o su identificador no es válido.
+
   /ticket/update:
     put:
       tags:
@@ -445,14 +544,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/TicketRequest"
+              $ref: "#/components/schemas/TicketUpdateRequest"
       responses:
         "200":
           description: Todo correcto; ticket actualizado.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TicketMutationResponse"
+                $ref: "#/components/schemas/Ticket"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -472,6 +571,9 @@ paths:
       tags:
         - Tickets
       summary: Listar todos los tickets
+      description: |
+        Devuelve los tickets del usuario autenticado. El rol `comercio` solo recibe los tickets
+        de su empresa; los roles técnicos reciben todos.
       security:
         - bearerAuth: []
       responses:
@@ -512,13 +614,26 @@ components:
       name: amount
       in: query
       required: true
-      description: Importe a retirar. Debe ser un número positivo con dos decimales como máximo y no superar el saldo.
+      description: Importe a retirar. Debe ser un número positivo con dos decimales como máximo y no superar el saldo de la moneda.
       schema:
         type: number
         format: double
         minimum: 0.01
         multipleOf: 0.01
       example: 25.5
+    Currency:
+      name: currency
+      in: query
+      required: false
+      description: Moneda sobre la que se realiza la retirada. Por defecto `EUR`.
+      schema:
+        type: string
+        enum:
+          - EUR
+          - USD
+          - GBP
+        default: EUR
+      example: EUR
     TransactionId:
       name: transaction_id
       in: query
@@ -627,6 +742,7 @@ components:
       required:
         - token
         - token_type
+        - user
       properties:
         token:
           type: string
@@ -641,31 +757,82 @@ components:
           type: integer
           description: Validez del token en segundos.
           example: 3600
+        user:
+          $ref: "#/components/schemas/AuthUser"
+
+    AuthUser:
+      type: object
+      required:
+        - id
+        - name
+        - role
+      properties:
+        id:
+          type: string
+          example: usr_tpv01
+        name:
+          type: string
+          example: Laura Martínez
+        role:
+          type: string
+          enum:
+            - admin
+            - tecnico
+            - comercio
+          description: Rol del usuario autenticado.
+          example: tecnico
+        subtitle:
+          type: string
+          example: Técnica de soporte
+        company_id:
+          type: string
+          description: Sólo para el rol `comercio`.
+          example: emp_001
+        company_name:
+          type: string
+          description: Sólo para el rol `comercio`.
+          example: Comercio Ejemplo SL
 
     BalanceResponse:
       type: object
       required:
         - company
-        - balance
+        - balances
       properties:
         company:
           type: string
           description: Nombre de la empresa autenticada.
           example: Comercio Ejemplo SL
-        balance:
+        balances:
+          type: array
+          description: Saldo disponible por moneda.
+          items:
+            $ref: "#/components/schemas/BalanceAccount"
+
+    BalanceAccount:
+      type: object
+      required:
+        - currency
+        - amount
+      properties:
+        currency:
+          type: string
+          enum:
+            - EUR
+            - USD
+            - GBP
+          example: EUR
+        amount:
           type: number
           format: double
           multipleOf: 0.01
-          description: Saldo disponible de la empresa.
-          example: 1250.75
-        currency:
-          type: string
-          example: EUR
+          example: 1000.0
 
     WithdrawResponse:
       type: object
       required:
         - withdrawn
+        - currency
         - balance
       properties:
         withdrawn:
@@ -673,11 +840,18 @@ components:
           format: double
           multipleOf: 0.01
           example: 25.5
+        currency:
+          type: string
+          enum:
+            - EUR
+            - USD
+            - GBP
+          example: EUR
         balance:
           type: number
           format: double
           multipleOf: 0.01
-          description: Saldo restante tras la retirada.
+          description: Saldo restante de esa moneda tras la retirada.
           example: 1225.25
 
     Product:
@@ -799,21 +973,17 @@ components:
     RefundActionResponse:
       type: object
       required:
-        - transaction_id
-        - status
+        - refund
+        - balance
       properties:
-        transaction_id:
-          type: string
-          example: txn_8f14e45fceea167a
-        status:
-          type: string
-          enum:
-            - accepted
-            - rejected
-          example: accepted
-        message:
-          type: string
-          example: Reembolso actualizado correctamente.
+        refund:
+          $ref: "#/components/schemas/Refund"
+        balance:
+          type: number
+          format: double
+          multipleOf: 0.01
+          description: Saldo restante de la moneda de la devolución.
+          example: 1207.5
 
     Refund:
       type: object
@@ -821,6 +991,9 @@ components:
         - id
         - transaction_id
         - amount
+        - currency
+        - client
+        - reference
         - status
       properties:
         id:
@@ -829,11 +1002,26 @@ components:
         transaction_id:
           type: string
           example: txn_8f14e45fceea167a
+        reference:
+          type: string
+          description: Identificador corto del pago asociado.
+          example: P-1048
+        client:
+          type: string
+          description: Cliente que realizó el pago devuelto.
+          example: Lucía García
         amount:
           type: number
           format: double
           multipleOf: 0.01
           example: 12.5
+        currency:
+          type: string
+          enum:
+            - EUR
+            - USD
+            - GBP
+          example: EUR
         status:
           type: string
           enum:
@@ -854,6 +1042,7 @@ components:
       required:
         - id
         - nombre
+        - status
       properties:
         id:
           type: string
@@ -866,23 +1055,57 @@ components:
           format: double
           multipleOf: 0.01
           example: 1250.75
+        status:
+          type: string
+          enum:
+            - activo
+            - dado-de-baja
+          description: Estado de la empresa. La baja es lógica y conserva el histórico.
+          example: activo
+        registered_at:
+          type: string
+          format: date-time
+          example: 2026-09-12T09:00:00Z
 
     Payment:
       type: object
       required:
         - transaction_id
         - amount
+        - currency
+        - client
+        - reference
+        - invoice
         - payment_method
         - status
       properties:
         transaction_id:
           type: string
           example: txn_8f14e45fceea167a
+        client:
+          type: string
+          description: Cliente que realizó el pago.
+          example: Lucía García
+        reference:
+          type: string
+          description: Identificador corto e visible del pago.
+          example: P-1048
+        invoice:
+          type: string
+          description: Número de factura del comercio.
+          example: LH-F2026-1048
         amount:
           type: number
           format: double
           multipleOf: 0.01
           example: 12.5
+        currency:
+          type: string
+          enum:
+            - EUR
+            - USD
+            - GBP
+          example: EUR
         payment_method:
           type: string
           enum:
@@ -905,51 +1128,154 @@ components:
           format: date-time
           example: 2026-11-17T10:30:00Z
 
-    TicketRequest:
+    TicketCreateRequest:
       type: object
       required:
-        - total
-        - products
+        - company_id
+        - subject
       properties:
         company_id:
           type: string
           example: emp_001
-        total:
-          type: number
-          format: double
-          multipleOf: 0.01
-          minimum: 0
-          description: Importe total del ticket.
-          example: 12.5
-        products:
-          type: array
-          minItems: 1
-          items:
-            $ref: "#/components/schemas/Product"
-        issued_at:
+        company_name:
           type: string
-          format: date-time
-          example: 2026-11-17T10:30:00Z
+          description: Si se omite, se resuelve a partir de `company_id`.
+          example: Comercio Ejemplo SL
+        subject:
+          type: string
+          maxLength: 140
+          example: Pago rechazado en checkout
+        description:
+          type: string
+          example: El comercio no puede completar el cobro en el terminal.
+        status:
+          type: string
+          enum:
+            - open
+            - in_progress
+            - closed
+          default: open
+          example: open
 
-    Ticket:
-      allOf:
-        - $ref: "#/components/schemas/TicketRequest"
-        - type: object
-          required:
-            - id
-          properties:
-            id:
-              type: string
-              example: tkt_001
+    TicketUpdateRequest:
+      type: object
+      description: Al menos uno de los campos es obligatorio.
+      properties:
+        status:
+          type: string
+          enum:
+            - open
+            - in_progress
+            - closed
+          example: in_progress
+        reply:
+          type: string
+          description: Respuesta del equipo de soporte. Queda registrada en el historial.
+          example: Estamos revisando la pasarela con el proveedor de pagos.
 
-    TicketMutationResponse:
+    TicketHistoryEntry:
       type: object
       required:
         - id
+        - at
+        - title
+      properties:
+        id:
+          type: string
+          example: tkt_001-h1
+        at:
+          type: string
+          format: date-time
+          example: 2026-11-17T10:30:00Z
+        title:
+          type: string
+          example: Ticket abierto
+        description:
+          type: string
+          example: Incidencia recibida desde el portal del comercio.
+        author:
+          type: string
+          example: Equipo de soporte PLP
+
+    TicketMessage:
+      type: object
+      required:
+        - id
+        - author
+        - role
+        - message
+        - created_at
+      properties:
+        id:
+          type: string
+          example: "1086-m1"
+        author:
+          type: string
+          example: Laura Martínez
+        role:
+          type: string
+          enum:
+            - comercio
+            - tecnico
+          example: tecnico
+        message:
+          type: string
+          example: El abono tarda entre 2 y 5 días hábiles.
+        created_at:
+          type: string
+          format: date-time
+          example: 2026-11-17T10:05:00Z
+
+    Ticket:
+      type: object
+      required:
+        - id
+        - company_id
+        - company_name
+        - subject
+        - status
+        - created_at
+        - updated_at
       properties:
         id:
           type: string
           example: tkt_001
-        message:
+        company_id:
           type: string
-          example: Ticket guardado correctamente.
+          example: emp_001
+        company_name:
+          type: string
+          example: Comercio Ejemplo SL
+        subject:
+          type: string
+          example: Pago rechazado en checkout
+        description:
+          type: string
+          example: El comercio no puede completar el cobro en el terminal.
+        status:
+          type: string
+          enum:
+            - open
+            - in_progress
+            - closed
+          example: open
+        reply:
+          type: string
+          example: ""
+        created_at:
+          type: string
+          format: date-time
+          example: 2026-11-17T10:30:00Z
+        updated_at:
+          type: string
+          format: date-time
+          example: 2026-11-17T10:30:00Z
+        history:
+          type: array
+          items:
+            $ref: "#/components/schemas/TicketHistoryEntry"
+        messages:
+          type: array
+          description: Conversación entre el comercio y el equipo de soporte.
+          items:
+            $ref: "#/components/schemas/TicketMessage"

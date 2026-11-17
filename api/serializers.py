@@ -9,6 +9,9 @@ class LoginRequestSerializer(serializers.Serializer):
 
 class WithdrawQuerySerializer(serializers.Serializer):
     amount = serializers.FloatField(required=True, min_value=0.01)
+    currency = serializers.ChoiceField(
+        choices=['EUR', 'USD', 'GBP'], required=False, default='EUR'
+    )
 
 
 class ProductSerializer(serializers.Serializer):
@@ -38,13 +41,30 @@ class PaymentRequestSerializer(serializers.Serializer):
         return value
 
 
-class TicketRequestSerializer(serializers.Serializer):
-    company_id = serializers.CharField(required=False, allow_blank=True)
-    total = serializers.FloatField(min_value=0)
-    products = ProductSerializer(many=True)
-    issued_at = serializers.CharField(required=False, allow_blank=True)
+class TicketCreateRequestSerializer(serializers.Serializer):
+    company_id = serializers.CharField()
+    company_name = serializers.CharField(required=False, allow_blank=True)
+    subject = serializers.CharField(max_length=140)
+    description = serializers.CharField(required=False, allow_blank=True)
+    status = serializers.ChoiceField(
+        choices=["open", "in_progress", "closed"], required=False, default="open"
+    )
 
-    def validate_products(self, value):
-        if not value:
-            raise serializers.ValidationError("Debe incluir al menos un producto.")
+
+class TicketMessageRequestSerializer(serializers.Serializer):
+    message = serializers.CharField(max_length=1000)
+
+    def validate_message(self, value):
+        if not value.strip():
+            raise serializers.ValidationError("El mensaje no puede estar vacío.")
         return value
+
+
+class TicketUpdateRequestSerializer(serializers.Serializer):
+    status = serializers.ChoiceField(choices=["open", "in_progress", "closed"], required=False)
+    reply = serializers.CharField(required=False, allow_blank=True)
+
+    def validate(self, attrs):
+        if not attrs:
+            raise serializers.ValidationError("Debe indicar un estado o una respuesta.")
+        return attrs
