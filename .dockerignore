@@ -1,0 +1,10 @@
+.git
+.github
+frontend
+**/__pycache__
+**/*.py[cod]
+.venv
+venv
+*.sqlite3
+db.sqlite3
+.env
