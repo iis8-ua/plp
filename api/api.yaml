@@ -1,0 +1,955 @@
+openapi: 3.0.3
+info:
+  title: API TPV
+  version: 1.0.0
+  description: |
+    API REST para PLP (Pasa la Pasta).
+
+    Los importes se expresan con dos decimales (`number`, `format: double`, `multipleOf: 0.01`).
+tags:
+  - name: Autenticación
+    description: Inicio y cierre de sesión.
+  - name: Caja
+    description: Retiradas, saldo y pagos.
+  - name: Reembolsos
+    description: Solicitud, aceptación, rechazo y consulta de reembolsos.
+  - name: Empresas
+    description: Gestión de empresas (sólo administrador).
+  - name: Pagos
+    description: Consulta de pagos efectuados.
+  - name: Tickets
+    description: Gestión de tickets.
+
+paths:
+  /login:
+    post:
+      tags:
+        - Autenticación
+      summary: Iniciar sesión y obtener token Bearer
+      description: |
+        Autentica a la empresa usuaria. El nombre de usuario se envía como parámetro de consulta
+        y la contraseña en el cuerpo. Si falla el parámetro `user` se responde 400; si el usuario
+        no existe o la contraseña es incorrecta, 401.
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/User"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Todo correcto; devuelve el token Bearer.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+              example:
+                token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                token_type: Bearer
+                expires_in: 3600
+        "400":
+          description: No se ha indicado el parámetro `user` o la petición está mal formada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: MISSING_USER
+                message: Falta el parámetro de consulta 'user'.
+        "401":
+          description: El usuario no existe o la contraseña es incorrecta.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: INVALID_CREDENTIALS
+                message: Usuario o contraseña incorrectos.
+
+  /logout:
+    post:
+      tags:
+        - Autenticación
+      summary: Cerrar sesión
+      description: Invalida el token Bearer de la sesión actual.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Todo correcto; sesión cerrada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+              example:
+                message: Sesión cerrada correctamente.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          description: Algo fue mal al cerrar la sesión.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: LOGOUT_ERROR
+                message: No se pudo cerrar la sesión.
+
+  /withdraw:
+    post:
+      tags:
+        - Caja
+      summary: Retirar dinero del saldo de la empresa
+      description: |
+        Resta `amount` del saldo de la empresa autenticada. Un importe mal escrito o superior
+        al saldo disponible produce un 400.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Amount"
+      responses:
+        "200":
+          description: Todo correcto; retirada realizada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WithdrawResponse"
+        "400":
+          description: El parámetro `amount` está mal escrito o es mayor que el saldo disponible.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: INVALID_AMOUNT
+                message: El importe no es válido o supera el saldo disponible.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /balance:
+    get:
+      tags:
+        - Caja
+      summary: Consultar el saldo de la empresa autenticada
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Devuelve el saldo de la empresa autenticada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BalanceResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /pay:
+    post:
+      tags:
+        - Caja
+      summary: Registrar y procesar un pago
+      description: |
+        Procesa un pago con los datos del ticket incluidos en el cuerpo: importe total, tipo de
+        pago, productos comprados y datos de pago. Cuerpo mal formado → 400; pago rechazado → 422;
+        saldo insuficiente → 409; error en el pago → 500.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentRequest"
+      responses:
+        "200":
+          description: Todo correcto; pago realizado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentResponse"
+        "400":
+          description: El cuerpo de la petición está mal formado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: MALFORMED_BODY
+                message: El cuerpo de la petición no es válido.
+        "409":
+          description: Saldo insuficiente para completar el pago.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: INSUFFICIENT_BALANCE
+                message: Saldo insuficiente.
+        "422":
+          description: El pago ha sido rechazado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: PAYMENT_REJECTED
+                message: El pago ha sido rechazado.
+        "500":
+          description: Ha habido un error al procesar el pago.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: PAYMENT_ERROR
+                message: Error interno al procesar el pago.
+
+  /refunds/request:
+    post:
+      tags:
+        - Reembolsos
+      summary: Solicitar un reembolso
+      description: |
+        Solicita el reembolso de una transacción. La petición se acepta para su procesamiento
+        (202). Si el `transaction_id` no existe o está mal formado se responde 404.
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/TransactionId"
+      responses:
+        "202":
+          description: Todo correcto; solicitud de reembolso aceptada para procesamiento.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RefundRequestResponse"
+        "404":
+          description: El `transaction_id` no existe o está mal formado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: TRANSACTION_NOT_FOUND
+                message: La transacción indicada no existe o su identificador no es válido.
+
+  /refunds/accept:
+    post:
+      tags:
+        - Reembolsos
+      summary: Aceptar un reembolso
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/TransactionId"
+      responses:
+        "200":
+          description: Todo correcto; reembolso aceptado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RefundActionResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /refunds/reject:
+    post:
+      tags:
+        - Reembolsos
+      summary: Rechazar un reembolso
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/TransactionId"
+      responses:
+        "200":
+          description: Todo correcto; reembolso rechazado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RefundActionResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /refunds:
+    get:
+      tags:
+        - Reembolsos
+      summary: Listar todos los reembolsos
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Devuelve todos los reembolsos.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Refund"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /companies/add:
+    put:
+      tags:
+        - Empresas
+      summary: Añadir una empresa (sólo administrador)
+      description: Operación restringida al rol de administrador.
+      x-required-role: admin
+      security:
+        - adminAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CompanyName"
+      responses:
+        "200":
+          description: Todo correcto; empresa añadida.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Company"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /companies/delete:
+    delete:
+      tags:
+        - Empresas
+      summary: Eliminar una empresa (sólo administrador)
+      description: Operación restringida al rol de administrador.
+      x-required-role: admin
+      security:
+        - adminAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CompanyId"
+      responses:
+        "200":
+          description: Todo correcto; empresa eliminada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+              example:
+                message: Empresa eliminada correctamente.
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /companies:
+    get:
+      tags:
+        - Empresas
+      summary: Listar todas las empresas (sólo administrador)
+      description: Requiere token Bearer y credencial de administrador.
+      x-required-role: admin
+      security:
+        - bearerAuth: []
+          adminAuth: []
+      responses:
+        "200":
+          description: Devuelve todas las empresas.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Company"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /payments:
+    get:
+      tags:
+        - Pagos
+      summary: Listar todos los pagos efectuados
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Devuelve todos los pagos efectuados.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Payment"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /ticket/add:
+    post:
+      tags:
+        - Tickets
+      summary: Añadir un ticket
+      description: La información del ticket se envía en el cuerpo de la petición.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TicketRequest"
+      responses:
+        "200":
+          description: Todo correcto; ticket añadido.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TicketMutationResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /ticket/delete:
+    delete:
+      tags:
+        - Tickets
+      summary: Eliminar un ticket (sólo administrador)
+      description: Operación restringida al rol de administrador.
+      x-required-role: admin
+      security:
+        - adminAuth: []
+      parameters:
+        - $ref: "#/components/parameters/TicketId"
+      responses:
+        "200":
+          description: Todo correcto; ticket eliminado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+              example:
+                message: Ticket eliminado correctamente.
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /ticket/update:
+    put:
+      tags:
+        - Tickets
+      summary: Actualizar un ticket
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/TicketId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TicketRequest"
+      responses:
+        "200":
+          description: Todo correcto; ticket actualizado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TicketMutationResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: El `id` no existe o está mal formado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: TICKET_NOT_FOUND
+                message: El ticket indicado no existe o su identificador no es válido.
+
+  /tickets:
+    get:
+      tags:
+        - Tickets
+      summary: Listar todos los tickets
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Devuelve todos los tickets.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Ticket"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Token Bearer devuelto por `POST /login`.
+    adminAuth:
+      type: apiKey
+      in: header
+      name: X-Admin-Token
+      description: Credencial exclusiva de administrador para las operaciones marcadas como «SÓLO EL ADMIN».
+
+  parameters:
+    User:
+      name: user
+      in: query
+      required: true
+      description: Nombre de usuario. Si falta, la petición devuelve 400.
+      schema:
+        type: string
+      example: tpv01
+    Amount:
+      name: amount
+      in: query
+      required: true
+      description: Importe a retirar. Debe ser un número positivo con dos decimales como máximo y no superar el saldo.
+      schema:
+        type: number
+        format: double
+        minimum: 0.01
+        multipleOf: 0.01
+      example: 25.5
+    TransactionId:
+      name: transaction_id
+      in: query
+      required: true
+      description: Identificador de la transacción. Si no existe o está mal formado, la petición devuelve 404.
+      schema:
+        type: string
+        pattern: "^[A-Za-z0-9_-]+$"
+      example: txn_8f14e45fceea167a
+    CompanyName:
+      name: nombre
+      in: query
+      required: true
+      description: Nombre de la empresa que se va a dar de alta.
+      schema:
+        type: string
+        minLength: 1
+      example: Comercio Ejemplo SL
+    CompanyId:
+      name: id
+      in: query
+      required: true
+      description: Identificador de la empresa.
+      schema:
+        type: string
+        pattern: "^[A-Za-z0-9_-]+$"
+      example: emp_001
+    TicketId:
+      name: id
+      in: query
+      required: true
+      description: Identificador del ticket.
+      schema:
+        type: string
+        pattern: "^[A-Za-z0-9_-]+$"
+      example: tkt_001
+
+  responses:
+    BadRequest:
+      description: La petición está mal formada.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Unauthorized:
+      description: Token Bearer ausente, inválido o caducado.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Forbidden:
+      description: La operación requiere permisos de administrador.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    InternalServerError:
+      description: Algo fue mal en el servidor.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+  schemas:
+    Error:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          description: Código de error de la API.
+          example: INVALID_REQUEST
+        message:
+          type: string
+          description: Descripción legible del error.
+          example: La petición no es válida.
+        details:
+          type: object
+          additionalProperties: true
+          description: Información adicional opcional sobre el error.
+
+    Message:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          example: Operación realizada correctamente.
+
+    LoginRequest:
+      type: object
+      required:
+        - password
+      properties:
+        password:
+          type: string
+          format: password
+          description: Contraseña del usuario indicado en el parámetro de consulta `user`.
+          example: mi-contrasena
+
+    LoginResponse:
+      type: object
+      required:
+        - token
+        - token_type
+      properties:
+        token:
+          type: string
+          description: "Token Bearer a enviar en la cabecera `Authorization: Bearer <token>`."
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        token_type:
+          type: string
+          enum:
+            - Bearer
+          example: Bearer
+        expires_in:
+          type: integer
+          description: Validez del token en segundos.
+          example: 3600
+
+    BalanceResponse:
+      type: object
+      required:
+        - company
+        - balance
+      properties:
+        company:
+          type: string
+          description: Nombre de la empresa autenticada.
+          example: Comercio Ejemplo SL
+        balance:
+          type: number
+          format: double
+          multipleOf: 0.01
+          description: Saldo disponible de la empresa.
+          example: 1250.75
+        currency:
+          type: string
+          example: EUR
+
+    WithdrawResponse:
+      type: object
+      required:
+        - withdrawn
+        - balance
+      properties:
+        withdrawn:
+          type: number
+          format: double
+          multipleOf: 0.01
+          example: 25.5
+        balance:
+          type: number
+          format: double
+          multipleOf: 0.01
+          description: Saldo restante tras la retirada.
+          example: 1225.25
+
+    Product:
+      type: object
+      required:
+        - product_id
+        - name
+        - quantity
+        - unit_price
+      properties:
+        product_id:
+          type: string
+          example: P-123
+        name:
+          type: string
+          example: Café
+        quantity:
+          type: integer
+          minimum: 1
+          example: 2
+        unit_price:
+          type: number
+          format: double
+          multipleOf: 0.01
+          minimum: 0
+          example: 1.5
+
+    PaymentData:
+      type: object
+      description: Datos de pago correspondientes al tipo de pago elegido.
+      properties:
+        card_number:
+          type: string
+          example: "4111111111111111"
+        expiry:
+          type: string
+          example: 12/28
+        cvv:
+          type: string
+          example: "123"
+        holder:
+          type: string
+          example: J. Pérez
+        iban:
+          type: string
+          example: ES9121000418450200051332
+      additionalProperties: true
+
+    PaymentRequest:
+      type: object
+      required:
+        - total_amount
+        - payment_method
+        - products
+        - payment_data
+      properties:
+        total_amount:
+          type: number
+          format: double
+          multipleOf: 0.01
+          minimum: 0
+          description: Importe total del pago.
+          example: 12.5
+        payment_method:
+          type: string
+          enum:
+            - card
+            - cash
+            - transfer
+          description: Tipo de pago.
+          example: card
+        products:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/Product"
+        payment_data:
+          $ref: "#/components/schemas/PaymentData"
+
+    PaymentResponse:
+      type: object
+      required:
+        - transaction_id
+        - status
+      properties:
+        transaction_id:
+          type: string
+          example: txn_8f14e45fceea167a
+        status:
+          type: string
+          enum:
+            - approved
+          example: approved
+        authorized_amount:
+          type: number
+          format: double
+          multipleOf: 0.01
+          example: 12.5
+
+    RefundRequestResponse:
+      type: object
+      required:
+        - request_id
+        - transaction_id
+        - status
+      properties:
+        request_id:
+          type: string
+          example: req_21b3d9
+        transaction_id:
+          type: string
+          example: txn_8f14e45fceea167a
+        status:
+          type: string
+          enum:
+            - pending
+          example: pending
+
+    RefundActionResponse:
+      type: object
+      required:
+        - transaction_id
+        - status
+      properties:
+        transaction_id:
+          type: string
+          example: txn_8f14e45fceea167a
+        status:
+          type: string
+          enum:
+            - accepted
+            - rejected
+          example: accepted
+        message:
+          type: string
+          example: Reembolso actualizado correctamente.
+
+    Refund:
+      type: object
+      required:
+        - id
+        - transaction_id
+        - amount
+        - status
+      properties:
+        id:
+          type: string
+          example: ref_001
+        transaction_id:
+          type: string
+          example: txn_8f14e45fceea167a
+        amount:
+          type: number
+          format: double
+          multipleOf: 0.01
+          example: 12.5
+        status:
+          type: string
+          enum:
+            - pending
+            - accepted
+            - rejected
+          example: pending
+        reason:
+          type: string
+          example: Producto defectuoso
+        created_at:
+          type: string
+          format: date-time
+          example: 2026-11-17T10:30:00Z
+
+    Company:
+      type: object
+      required:
+        - id
+        - nombre
+      properties:
+        id:
+          type: string
+          example: emp_001
+        nombre:
+          type: string
+          example: Comercio Ejemplo SL
+        balance:
+          type: number
+          format: double
+          multipleOf: 0.01
+          example: 1250.75
+
+    Payment:
+      type: object
+      required:
+        - transaction_id
+        - amount
+        - payment_method
+        - status
+      properties:
+        transaction_id:
+          type: string
+          example: txn_8f14e45fceea167a
+        amount:
+          type: number
+          format: double
+          multipleOf: 0.01
+          example: 12.5
+        payment_method:
+          type: string
+          enum:
+            - card
+            - cash
+            - transfer
+          example: card
+        status:
+          type: string
+          enum:
+            - approved
+            - rejected
+          example: approved
+        products:
+          type: array
+          items:
+            $ref: "#/components/schemas/Product"
+        created_at:
+          type: string
+          format: date-time
+          example: 2026-11-17T10:30:00Z
+
+    TicketRequest:
+      type: object
+      required:
+        - total
+        - products
+      properties:
+        company_id:
+          type: string
+          example: emp_001
+        total:
+          type: number
+          format: double
+          multipleOf: 0.01
+          minimum: 0
+          description: Importe total del ticket.
+          example: 12.5
+        products:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/Product"
+        issued_at:
+          type: string
+          format: date-time
+          example: 2026-11-17T10:30:00Z
+
+    Ticket:
+      allOf:
+        - $ref: "#/components/schemas/TicketRequest"
+        - type: object
+          required:
+            - id
+          properties:
+            id:
+              type: string
+              example: tkt_001
+
+    TicketMutationResponse:
+      type: object
+      required:
+        - id
+      properties:
+        id:
+          type: string
+          example: tkt_001
+        message:
+          type: string
+          example: Ticket guardado correctamente.
