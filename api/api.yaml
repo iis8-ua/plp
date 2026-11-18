@@ -698,6 +698,59 @@ paths:
         "403":
           $ref: "#/components/responses/Forbidden"
 
+  /technicians/deactivate:
+    put:
+      tags:
+        - Técnicos
+      summary: Desactivar un técnico (solo administrador)
+      description: |
+        Marca al técnico como inactivo e invalida sus tokens. Un técnico inactivo no puede
+        iniciar sesión ni usar la API.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/TechnicianId"
+      responses:
+        "200":
+          description: Técnico desactivado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Technician"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: El técnico no existe.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /technicians/reactivate:
+    put:
+      tags:
+        - Técnicos
+      summary: Reactivar un técnico (solo administrador)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/TechnicianId"
+      responses:
+        "200":
+          description: Técnico reactivado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Technician"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: El técnico no existe.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
   /profile:
     get:
       tags:
@@ -769,7 +822,7 @@ components:
       type: http
       scheme: bearer
       bearerFormat: Token
-      description: Token Bearer devuelto por `POST /login`.
+      description: Token Bearer devuelto por `POST /login`. Caduca a los 3600 segundos; al caducar, la API responde 401.
 
   parameters:
     User:
@@ -849,6 +902,15 @@ components:
         type: string
         pattern: "^[0-9]+$"
       example: "1086"
+    TechnicianId:
+      name: id
+      in: query
+      required: true
+      description: Identificador numérico del técnico.
+      schema:
+        type: string
+        pattern: "^[0-9]+$"
+      example: "4"
 
   responses:
     BadRequest:

@@ -1,7 +1,7 @@
 import { computed, reactive, ref } from 'vue'
 import { defineStore } from 'pinia'
 import type { Technician, TechnicianCreatePayload } from '@/types'
-import { createTechnician, fetchTechnicians } from '@/services/technicians.service'
+import { createTechnician, deactivateTechnician, fetchTechnicians, reactivateTechnician } from '@/services/technicians.service'
 
 export const useTechniciansStore = defineStore('technicians', () => {
   const technicians = ref<Technician[]>([])
@@ -62,10 +62,28 @@ export const useTechniciansStore = defineStore('technicians', () => {
     }
   }
 
+  async function setActive(id: string, active: boolean): Promise<Technician> {
+    saving.value = true
+    error.value = ''
+    try {
+      const technician = active
+        ? await reactivateTechnician(id)
+        : await deactivateTechnician(id)
+      const index = technicians.value.findIndex((item) => item.id === id)
+      if (index >= 0) technicians.value[index] = technician
+      return technician
+    } catch (cause) {
+      error.value = cause instanceof Error ? cause.message : 'No se pudo actualizar el técnico.'
+      throw cause
+    } finally {
+      saving.value = false
+    }
+  }
+
   function clearFilters(): void {
     filters.search = ''
     filters.status = 'todos'
   }
 
-  return { technicians, loading, saving, error, loaded, filters, stats, filtered, load, create, clearFilters }
+  return { technicians, loading, saving, error, loaded, filters, stats, filtered, load, create, setActive, clearFilters }
 })

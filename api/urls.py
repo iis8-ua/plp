@@ -26,6 +26,8 @@ urlpatterns = [
     path('ticket/assign', views.ticket_assign, name='ticket-assign'),
     path('tickets', views.tickets, name='tickets'),
     path('technicians', views.technicians, name='technicians'),
+    path('technicians/deactivate', views.technician_deactivate, name='technician-deactivate'),
+    path('technicians/reactivate', views.technician_reactivate, name='technician-reactivate'),
     path('profile', views.profile, name='profile'),
     path('profile/password', views.profile_password, name='profile-password'),
 ]

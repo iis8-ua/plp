@@ -11,6 +11,7 @@ import AppSelect from '@/shared/components/ui/AppSelect.vue'
 import EmptyState from '@/shared/components/ui/EmptyState.vue'
 import NewTechnicianDialog from '@/modules/tech/technicians/components/NewTechnicianDialog.vue'
 import AccountCreatedDialog from '@/shared/components/ui/AccountCreatedDialog.vue'
+import ConfirmTechnicianStatusDialog from '@/modules/tech/technicians/components/ConfirmTechnicianStatusDialog.vue'
 import TechnicianDetailDialog from '@/modules/tech/technicians/components/TechnicianDetailDialog.vue'
 import { useTechniciansStore } from '@/stores/technicians.store'
 import { useUiStore } from '@/stores/ui.store'
@@ -22,8 +23,10 @@ const ui = useUiStore()
 const newOpen = ref(false)
 const createdOpen = ref(false)
 const detailOpen = ref(false)
+const statusOpen = ref(false)
 const created = ref<Technician | null>(null)
 const selected = ref<Technician | null>(null)
+const statusTarget = ref<Technician | null>(null)
 
 const columns: DataColumn[] = [
   { key: 'name', label: 'Nombre completo' },
@@ -31,7 +34,7 @@ const columns: DataColumn[] = [
   { key: 'username', label: 'Usuario', class: 'w-[130px]', headerClass: 'w-[130px]' },
   { key: 'role', label: 'Rol', class: 'w-[100px]', headerClass: 'w-[100px]' },
   { key: 'status', label: 'Estado', class: 'w-[120px]', headerClass: 'w-[120px]' },
-  { key: 'actions', label: 'Acciones', class: 'w-[120px]', headerClass: 'w-[120px]' },
+  { key: 'actions', label: 'Acciones', class: 'w-[210px]', headerClass: 'w-[210px]' },
 ]
 
 const statusOptions = [
@@ -54,6 +57,27 @@ const paginated = computed(() =>
 function openDetail(technician: Technician): void {
   selected.value = technician
   detailOpen.value = true
+}
+
+function openStatus(technician: Technician): void {
+  statusTarget.value = technician
+  statusOpen.value = true
+}
+
+async function confirmStatus(): Promise<void> {
+  if (!statusTarget.value) return
+  const activating = statusTarget.value.status !== 'Activo'
+  try {
+    await store.setActive(statusTarget.value.id, activating)
+    statusOpen.value = false
+    statusTarget.value = null
+    ui.pushToast(
+      'success',
+      activating ? 'Técnico reactivado correctamente' : 'Técnico desactivado correctamente',
+    )
+  } catch (cause) {
+    ui.pushToast('error', cause instanceof Error ? cause.message : 'No se pudo actualizar el técnico.')
+  }
 }
 
 async function createTechnician(payload: TechnicianCreatePayload): Promise<void> {
@@ -165,13 +189,23 @@ onMounted(() => {
             </span>
           </template>
           <template #cell-actions="{ row }">
-            <button
-              type="button"
-              class="text-[13px] font-semibold text-brand-700 hover:underline"
-              @click="openDetail(row)"
-            >
-              Ver perfil
-            </button>
+            <div class="flex items-center justify-end gap-3">
+              <button
+                type="button"
+                class="text-[13px] font-semibold text-brand-700 hover:underline"
+                @click="openDetail(row)"
+              >
+                Ver perfil
+              </button>
+              <button
+                type="button"
+                class="text-[13px] font-semibold hover:underline"
+                :class="row.status === 'Activo' ? 'text-danger' : 'text-brand-700'"
+                @click="openStatus(row)"
+              >
+                {{ row.status === 'Activo' ? 'Desactivar' : 'Activar' }}
+              </button>
+            </div>
           </template>
         </DataTable>
 
@@ -210,6 +244,14 @@ onMounted(() => {
       :open="detailOpen"
       :technician="selected"
       @close="detailOpen = false"
+    />
+
+    <ConfirmTechnicianStatusDialog
+      :open="statusOpen"
+      :technician="statusTarget"
+      :loading="store.saving"
+      @confirm="confirmStatus"
+      @cancel="statusOpen = false"
     />
   </div>
 </template>

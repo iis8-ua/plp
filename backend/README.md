@@ -51,7 +51,8 @@ activa MySQL con las variables `MYSQL_*`.
 ## Autenticación
 
 `POST /login?user=<usuario>` con el body `{"password": "<contraseña>"}` devuelve un token de DRF
-y el usuario con su rol. El resto de peticiones usan `Authorization: Bearer <token>`.
+y el usuario con su rol. El resto de peticiones usan `Authorization: Bearer <token>`. El token
+caduca a los **3600 segundos**; al caducar o al desactivar al usuario, la API responde **401**.
 
 | Usuario | Contraseña | Rol | Empresa |
 | --- | --- | --- | --- |
@@ -84,8 +85,9 @@ Los roles se guardan en `pagos.PerfilUsuario`. Las rutas de administrador (`/com
 - **Empresas**: datos fiscales y de contacto (`razon_social`, `cif`, `tipo_empresa`,
   `actividad_economica`, dirección, contacto y web) además del nombre y estado. El alta crea
   también la cuenta de acceso del comercio (usuario, contraseña inicial y rol `comercio`).
-- **Técnicos**: usuarios con rol `tecnico`; el administrador puede listarlos y crear nuevos accesos
-  desde `/technicians`. La contraseña inicial solo se devuelve en la creación.
+- **Técnicos**: usuarios con rol `tecnico`; el administrador puede listarlos, crear nuevos accesos,
+  desactivarlos (se invalidan sus tokens) y reactivarlos desde `/technicians`. La contraseña
+  inicial solo se devuelve en la creación.
 - **Perfil**: `/profile` devuelve y actualiza los datos del usuario (o de la empresa si es un
   comercio) y `/profile/password` cambia la contraseña.
 
@@ -97,7 +99,8 @@ Los roles se guardan en `pagos.PerfilUsuario`. Las rutas de administrador (`/com
 | Endpoint | Código | Caso |
 | --- | --- | --- |
 | `/login` | 400 | Falta `?user=` |
-| `/login` | 401 | Credenciales incorrectas |
+| `/login` | 401 | Credenciales incorrectas o usuario desactivado |
+| Cualquier ruta protegida | 401 | Token ausente, inválido o caducado |
 | `/balance`, `/payments`, `/refunds` | 403 | Usuario sin empresa (admin/técnico) |
 | `/withdraw` | 400 | Importe no válido, moneda sin saldo o saldo insuficiente |
 | `/pay` | 422 | Pago rechazado (tarjeta terminada en `0002`) |
@@ -108,6 +111,7 @@ Los roles se guardan en `pagos.PerfilUsuario`. Las rutas de administrador (`/com
 | `/refunds/accept`, `/refunds/reject` | 404 | Devolución inexistente o de otra empresa |
 | `/companies*` | 403 | El usuario no es administrador |
 | `/technicians` | 403 | El usuario no es administrador |
+| `/technicians/deactivate`, `/reactivate` | 404 | El técnico no existe |
 | `/technicians` (POST) | 400 | Usuario o correo duplicado, o contraseña corta |
 | `/ticket/update` | 403 | El usuario es un comercio |
 | `/ticket/message` | 404 | Ticket inexistente o de otra empresa |

@@ -5,6 +5,7 @@ AUTENTICACIÓN
 Cabecera: Authorization: Bearer <token>
 El token lo devuelve POST /login y es un token de DRF.
 POST /logout invalida el token de la sesión.
+El token caduca a los 3600 segundos; al caducar, la API responde 401.
 
 Roles: admin | tecnico | comercio
 - admin: gestiona comercios, técnicos y puede asignar/eliminar tickets.
@@ -12,7 +13,7 @@ Roles: admin | tecnico | comercio
 - comercio: solo sus pagos, devoluciones, saldo y tickets.
 
 Códigos comunes
-- 401: falta el token o no es válido.
+- 401: falta el token, no es válido o ha caducado.
 - 403: el rol o la empresa no tiene permiso.
 - 400: validación del cuerpo/parámetros.
 - 404: recurso inexistente o de otra empresa.
@@ -207,13 +208,24 @@ GET /technicians(solo admin)
 }
 = 403: no admin
 
-POST /technicians(solo admin)
+POST /technicians (solo admin)
 Body: {
   name, email, username, password (mín. 8), force_change?
 }
 = 200: Technician + { password }  (solo al crear)
 = 400: usuario/correo duplicado o contraseña corta
 = 403: no admin
+
+PUT /technicians/deactivate?id=<id>   (solo admin)
+= 200: Technician con status "Inactivo"
+- Invalida sus tokens; no podrá iniciar sesión.
+= 403: no admin
+= 404: técnico inexistente
+
+PUT /technicians/reactivate?id=<id>   (solo admin)
+= 200: Technician con status "Activo"
+= 403: no admin
+= 404: técnico inexistente
 
 PERFIL
 ======

@@ -27,8 +27,7 @@ La implementación actual es una **API REST/JSON** sobre Django + Django REST Fr
 - Cuentas de cliente: el pago es **invitado**.
 - Facturación electrónica legal.
 - Interoperación con otros proyectos (RF-49): **no implementada**.
-- Desactivación de técnicos: el estado existe, pero no hay endpoint.
-- Caducidad real de tokens: los tokens de DRF no expiran.
+
 
 ## 3. Actores y roles
 
@@ -50,7 +49,7 @@ La implementación actual es una **API REST/JSON** sobre Django + Django REST Fr
 |---|---|---|---|
 | RF-01 | Login con usuario y contraseña; devuelve token DRF, usuario, rol, empresa y `force_password_change`. Errores: 400 sin usuario; 401 credenciales incorrectas. | `POST /login` | Must |
 | RF-02 | Cierre de sesión invalidando el token. | `POST /logout` | Must |
-| RF-03 | Endpoints protegidos con `Authorization: Bearer <token>`; permisos por rol (`admin`, `tecnico`, `comercio`). | — | Must |
+| RF-03 | Endpoints protegidos con `Authorization: Bearer <token>`; permisos por rol (`admin`, `tecnico`, `comercio`). El token caduca a los 3600 segundos. | — | Must |
 | RF-04 | Solo el administrador puede crear comercios, listarlos, darlos de baja y reactivarlos. El alta crea también la cuenta de acceso. | `PUT /companies/add`, `GET /companies`, `DELETE /companies/delete`, `PUT /companies/reactivate` | Must |
 | RF-05 | El equipo técnico (`tecnico`/`admin`) puede eliminar tickets; el comercio no. | `DELETE /ticket/delete` | Must |
 | RF-06 | Aislamiento: cada comercio solo accede a sus pagos, devoluciones, saldo y tickets. | — | Must |
@@ -122,7 +121,7 @@ La implementación actual es una **API REST/JSON** sobre Django + Django REST Fr
 | RF-42 | El administrador lista los técnicos con correo, usuario, estado y actividad. | `GET /technicians` | Must |
 | RF-43 | El administrador crea técnicos con nombre, correo, usuario, contraseña inicial y cambio obligatorio opcional. La contraseña solo se devuelve al crear. | `POST /technicians` | Must |
 | RF-44 | Validación de usuario y correo duplicados y contraseña mínima de 8 caracteres. | — | Must |
-| RF-45 | Desactivación de técnicos: pendiente (no hay endpoint). | — | Could |
+| RF-45 | El administrador puede desactivar y reactivar técnicos. Al desactivar se invalidan sus tokens y no puede iniciar sesión. | `PUT /technicians/deactivate`, `PUT /technicians/reactivate` | Must |
 
 ### 4.8 Perfiles
 
@@ -142,7 +141,7 @@ La implementación actual es una **API REST/JSON** sobre Django + Django REST Fr
 
 | ID | Categoría | Requisito |
 |---|---|---|
-| RNF-01 | Seguridad | Contraseñas hasheadas por Django (PBKDF2 por defecto); tokens Bearer de DRF (sin caducidad actualmente); HTTPS en producción. |
+| RNF-01 | Seguridad | Contraseñas hasheadas por Django (PBKDF2 por defecto); tokens Bearer de DRF con caducidad de 3600 s; HTTPS en producción. |
 | RNF-02 | Seguridad / PCI | No se almacenan PAN ni CVV; solo token, últimos 4 y caducidad. |
 | RNF-03 | Integridad | Retiradas y devoluciones son atómicas y bloquean el saldo; no se permiten saldos negativos. |
 | RNF-04 | Concurrencia | `select_for_update` en saldo para retiradas y devoluciones. |
@@ -176,7 +175,7 @@ La implementación actual es una **API REST/JSON** sobre Django + Django REST Fr
 
 ### 7.1 Acceso y cuentas
 
-- **US-01 · Iniciar sesión**: credenciales válidas → 200 con token y usuario (rol, empresa, cambio obligatorio); sin usuario → 400; incorrectas → 401. Debe enviarse `Authorization: Bearer`.
+- **US-01 · Iniciar sesión**: credenciales válidas → 200 con token y usuario (rol, empresa, cambio obligatorio); sin usuario → 400; incorrectas o usuario inactivo → 401. El token caduca a los 3600 s. Debe enviarse `Authorization: Bearer`.
 - **US-02 · Cerrar sesión**: 200 e invalidación del token; 401 sin token.
 - **US-03 · Alta de comercio**: solo admin; datos fiscales obligatorios y cuenta de acceso (usuario/contraseña); 200 con credenciales una sola vez; 400 por usuario duplicado.
 - **US-04 · Baja/reactivación**: solo admin; baja lógica conservando histórico; reactivación posterior.
@@ -211,6 +210,7 @@ La implementación actual es una **API REST/JSON** sobre Django + Django REST Fr
 
 - **US-22 · Listar técnicos**: solo admin; actividad y estado.
 - **US-23 · Crear técnico**: solo admin; credenciales una sola vez; validaciones.
+- **US-24 · Desactivar/reactivar técnico**: solo admin; confirmación; al desactivar se invalidan los tokens y se bloquea el login.
 
 ### 7.6 Interoperabilidad
 
@@ -225,7 +225,7 @@ La implementación actual es una **API REST/JSON** sobre Django + Django REST Fr
 | Pagos | RF-15 – RF-26 | US-08 – US-09 | `/pay`, `/payments` |
 | Devoluciones | RF-27 – RF-32 | US-12 – US-15 | `/refunds/*` |
 | Tickets | RF-33 – RF-41 | US-16 – US-21 | `/ticket/*`, `/tickets` |
-| Técnicos | RF-42 – RF-45 | US-22 – US-23 | `/technicians` |
+| Técnicos | RF-42 – RF-45 | US-22 – US-24 | `/technicians` |
 | Perfiles | RF-46 – RF-48 | US-06 – US-07 | `/profile`, `/profile/password` |
 | Interoperabilidad | RF-49 | US-26 | *(pendiente)* |
 

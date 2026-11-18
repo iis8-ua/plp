@@ -31,6 +31,7 @@ from pagos.models import (
 )
 
 from . import presenters
+from .authentication import issue_token, token_ttl_seconds
 from .permissions import HasCompany, IsAdminRole, company_for, role_for
 from .serializers import (
     CompanyCreateRequestSerializer,
@@ -128,12 +129,12 @@ def login(request):
             'INVALID_CREDENTIALS', 'Usuario o contraseña incorrectos.', status.HTTP_401_UNAUTHORIZED
         )
 
-    token, _ = Token.objects.get_or_create(user=user)
+    token = issue_token(user)
     return Response(
         {
             'token': token.key,
             'token_type': 'Bearer',
-            'expires_in': 3600,
+            'expires_in': token_ttl_seconds(),
             'user': presenters.user_payload(user),
         },
         status=status.HTTP_200_OK,
@@ -630,6 +631,59 @@ def technicians(request):
             presenters.technician_payload(user, technician_activity(user))
             for user in users
         ],
+        status=status.HTTP_200_OK,
+    )
+
+
+def technician_for_admin(raw_id):
+    try:
+        technician_id = int(raw_id or '')
+    except (TypeError, ValueError):
+        return None
+    return User.objects.filter(
+        pk=technician_id, perfil__rol=PerfilUsuario.Rol.TECNICO
+    ).first()
+
+
+@documented(200, 403, 404)
+@api_view(['PUT'])
+@permission_classes([IsAdminRole])
+def technician_deactivate(request):
+    technician = technician_for_admin(request.query_params.get('id'))
+    if technician is None:
+        return error_response(
+            'TECHNICIAN_NOT_FOUND',
+            'El técnico indicado no existe.',
+            status.HTTP_404_NOT_FOUND,
+        )
+
+    technician.is_active = False
+    technician.save(update_fields=['is_active'])
+    Token.objects.filter(user=technician).delete()
+
+    return Response(
+        presenters.technician_payload(technician, technician_activity(technician)),
+        status=status.HTTP_200_OK,
+    )
+
+
+@documented(200, 403, 404)
+@api_view(['PUT'])
+@permission_classes([IsAdminRole])
+def technician_reactivate(request):
+    technician = technician_for_admin(request.query_params.get('id'))
+    if technician is None:
+        return error_response(
+            'TECHNICIAN_NOT_FOUND',
+            'El técnico indicado no existe.',
+            status.HTTP_404_NOT_FOUND,
+        )
+
+    technician.is_active = True
+    technician.save(update_fields=['is_active'])
+
+    return Response(
+        presenters.technician_payload(technician, technician_activity(technician)),
         status=status.HTTP_200_OK,
     )
 

@@ -110,6 +110,7 @@ src/
 | Baja de comercio | `DELETE /companies/delete?id=` |
 | Reactivación de comercio | `PUT /companies/reactivate?id=` |
 | Técnicos | `GET /technicians`, `POST /technicians` |
+| Desactivar/reactivar técnico | `PUT /technicians/deactivate?id=`, `PUT /technicians/reactivate?id=` |
 | Perfil | `GET /profile`, `PUT /profile` |
 | Cambiar contraseña | `POST /profile/password` |
 
@@ -122,7 +123,7 @@ src/
 - Los estados de pago son `pending`, `approved`, `rejected` y `refunded`.
 - Aceptar una devolución descuenta el importe del saldo de esa moneda y, si es total, marca el pago como `refunded`.
 - El comercio solo recibe los tickets de su empresa; las respuestas y el historial se guardan en base de datos.
-- La autenticación es un token de DRF enviado como `Authorization: Bearer <token>`; los datos persisten entre reinicios.
+- La autenticación es un token de DRF enviado como `Authorization: Bearer <token>`; caduca a los 3600 segundos y la app cierra la sesión al recibir 401. Los datos persisten entre reinicios.
 
 ## Docker
 

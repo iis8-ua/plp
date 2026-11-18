@@ -162,6 +162,8 @@ APPEND_SLASH = False
 
 
 # Autenticación por token de DRF enviado como `Authorization: Bearer <token>`.
+TOKEN_TTL_SECONDS = 3600
+
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': ['api.authentication.BearerTokenAuthentication'],
     'DEFAULT_PERMISSION_CLASSES': ['rest_framework.permissions.IsAuthenticated'],

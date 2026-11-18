@@ -1,9 +1,11 @@
 """Tests de la API contra el modelo de datos real."""
 
 from decimal import Decimal
+from datetime import timedelta
 
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
+from django.utils import timezone
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient, APITestCase
 
@@ -47,9 +49,33 @@ class ApiTests(APITestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data['token_type'], 'Bearer')
+        self.assertEqual(response.data['expires_in'], 3600)
         self.assertEqual(response.data['user']['role'], 'comercio')
         self.assertEqual(response.data['user']['name'], 'Librería Horizonte')
         self.assertEqual(response.data['user']['company_name'], 'Librería Horizonte')
+
+    def test_expired_token_is_rejected(self):
+        self.login('comercio')
+        token = Token.objects.get(user__username='comercio')
+        Token.objects.filter(pk=token.pk).update(
+            created=timezone.now() - timedelta(seconds=7200)
+        )
+
+        self.assertEqual(self.client.get('/balance').status_code, 401)
+
+        self.client.credentials()
+        refreshed = self.client.post(
+            '/login?user=comercio', {'password': 'comercio'}, format='json'
+        )
+        self.assertEqual(refreshed.status_code, 200)
+        self.assertNotEqual(refreshed.data['token'], token.key)
+        self.assertEqual(
+            self.client.get(
+                '/balance',
+                HTTP_AUTHORIZATION=f"Bearer {refreshed.data['token']}",
+            ).status_code,
+            200,
+        )
 
     def test_login_roles(self):
         admin = self.client.post('/login?user=admin', {'password': 'admin'}, format='json')
@@ -510,6 +536,51 @@ class ApiTests(APITestCase):
             format='json',
         )
         self.assertEqual(duplicate.status_code, 400)
+
+    def test_technician_deactivate_and_reactivate(self):
+        self.login('admin')
+        carlos = get_user_model().objects.get(username='cruiz')
+        self.assertEqual(carlos.is_active, True)
+
+        # Token de Carlos antes de la baja
+        carlos_token = Token.objects.get_or_create(user=carlos)[0].key
+        carlos_client = APIClient()
+        carlos_client.credentials(HTTP_AUTHORIZATION=f'Bearer {carlos_token}')
+        self.assertEqual(carlos_client.get('/balance').status_code, 403)
+
+        deactivated = self.client.put(f'/technicians/deactivate?id={carlos.pk}')
+        self.assertEqual(deactivated.status_code, 200)
+        self.assertEqual(deactivated.data['status'], 'Inactivo')
+        self.assertFalse(Token.objects.filter(user=carlos).exists())
+        self.assertEqual(carlos_client.get('/balance').status_code, 401)
+
+        anonymous = APIClient()
+        self.assertEqual(
+            anonymous.post(
+                '/login?user=cruiz', {'password': 'tecnico123'}, format='json'
+            ).status_code,
+            401,
+        )
+
+        activated = self.client.put(f'/technicians/reactivate?id={carlos.pk}')
+        self.assertEqual(activated.status_code, 200)
+        self.assertEqual(activated.data['status'], 'Activo')
+        self.assertEqual(
+            anonymous.post(
+                '/login?user=cruiz', {'password': 'tecnico123'}, format='json'
+            ).status_code,
+            200,
+        )
+
+        self.login('tpv01')
+        self.assertEqual(
+            self.client.put(f'/technicians/deactivate?id={carlos.pk}').status_code,
+            403,
+        )
+        self.assertEqual(
+            self.client.put('/technicians/deactivate?id=nope').status_code,
+            403,
+        )
 
     def test_profile_by_role(self):
         self.login('comercio')

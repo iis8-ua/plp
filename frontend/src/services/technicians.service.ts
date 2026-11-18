@@ -37,3 +37,22 @@ export async function createTechnician(payload: TechnicianCreatePayload): Promis
   })
   return mapTechnician(response)
 }
+
+async function setActive(id: string, active: boolean): Promise<Technician> {
+  const response = await request<ApiTechnician>(
+    active ? '/technicians/reactivate' : '/technicians/deactivate',
+    {
+      method: 'PUT',
+      query: { id },
+    },
+  )
+  return mapTechnician(response)
+}
+
+export function deactivateTechnician(id: string): Promise<Technician> {
+  return setActive(id, false)
+}
+
+export function reactivateTechnician(id: string): Promise<Technician> {
+  return setActive(id, true)
+}
