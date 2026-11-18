@@ -31,14 +31,14 @@ const assignTarget = ref<Ticket | null>(null)
 const assignOpen = ref(false)
 
 const columns: DataColumn[] = [
-  { key: 'id', label: 'ID', class: 'w-[80px]', headerClass: 'w-[80px]', mobile: false },
-  { key: 'merchant', label: 'Comercio', class: 'w-[160px]', headerClass: 'w-[160px]' },
+  { key: 'id', label: 'ID', class: 'w-[64px]', headerClass: 'w-[64px]', mobile: false },
+  { key: 'merchant', label: 'Comercio', class: 'w-[136px]', headerClass: 'w-[136px]' },
   { key: 'subject', label: 'Asunto' },
-  { key: 'status', label: 'Estado', class: 'w-[112px]', headerClass: 'w-[112px]' },
-  { key: 'createdAt', label: 'Fecha de creación', class: 'w-[122px]', headerClass: 'w-[122px]', mobile: false },
-  { key: 'updatedAt', label: 'Última actualización', class: 'w-[150px]', headerClass: 'w-[150px]', mobile: false },
-  { key: 'assignee', label: 'Responsable', class: 'w-[170px]', headerClass: 'w-[170px]' },
-  { key: 'actions', label: 'Acciones', class: 'w-[286px]', headerClass: 'w-[286px]' },
+  { key: 'status', label: 'Estado', class: 'w-[96px]', headerClass: 'w-[96px]' },
+  { key: 'createdAt', label: 'Fecha de creación', class: 'w-[104px]', headerClass: 'w-[104px]', mobile: false },
+  { key: 'updatedAt', label: 'Última actualización', class: 'w-[124px]', headerClass: 'w-[124px]', mobile: false },
+  { key: 'assignee', label: 'Responsable', class: 'w-[132px]', headerClass: 'w-[132px]' },
+  { key: 'actions', label: 'Acciones', class: 'w-[280px]', headerClass: 'w-[280px]' },
 ]
 
 const sortOptions = [
