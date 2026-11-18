@@ -54,10 +54,6 @@ const userSubtitle = computed(() =>
   props.variant === 'comercio' ? auth.user?.companyName ?? 'Comercio' : auth.user?.subtitle ?? '',
 )
 
-const avatarSrc = computed(() =>
-  props.variant === 'tecnico' ? '/images/avatar-laura.jpg' : undefined,
-)
-
 function isActive(to: string): boolean {
   return route.path === to || route.path.startsWith(`${to}/`)
 }
@@ -146,7 +142,6 @@ async function handleLogout(): Promise<void> {
         <div class="flex items-center gap-3 px-1 pb-2 pt-5">
           <AppAvatar
             :name="auth.user?.name ?? 'Usuario'"
-            :src="avatarSrc"
             :size="40"
             shape="circle"
             tone="brand"

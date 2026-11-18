@@ -12,7 +12,7 @@ const title = computed(() => (route.meta.title as string | undefined) ?? 'Portal
   <div class="flex min-h-screen bg-app">
     <AppSidebar variant="comercio" />
     <div class="flex min-w-0 flex-1 flex-col">
-      <AppHeader :title="title" variant="comercio" />
+      <AppHeader :title="title" />
       <main class="flex-1 p-4 sm:p-6 lg:p-8">
         <div class="mx-auto w-full max-w-[1152px]">
           <RouterView />
