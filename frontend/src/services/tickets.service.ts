@@ -30,6 +30,7 @@ interface ApiTicket {
   updated_at?: string
   history?: ApiTicketHistoryEntry[]
   messages?: ApiTicketMessage[]
+  assignee?: { id: string; name: string } | null
 }
 
 const STATUS_FROM_API: Record<string, TicketStatus> = {
@@ -99,6 +100,7 @@ function mapApiTicket(ticket: ApiTicket): Ticket {
             },
           ],
     messages: (ticket.messages ?? []).map(mapMessage),
+    assignee: ticket.assignee ?? null,
   }
 }
 
@@ -134,6 +136,21 @@ export async function addTicketMessage(ticketId: string, message: string): Promi
   return mapApiTicket(response)
 }
 
+export async function assignTicket(
+  ticketId: string,
+  payload: { technicianId?: string; assignToMe?: boolean },
+): Promise<Ticket> {
+  const response = await request<ApiTicket>('/ticket/assign', {
+    method: 'PUT',
+    query: { id: ticketId },
+    body: {
+      technician_id: payload.technicianId ?? '',
+      assign_to_me: payload.assignToMe ?? false,
+    },
+  })
+  return mapApiTicket(response)
+}
+
 export async function updateTicket(
   ticketId: string,
   changes: { status: TicketStatus; reply: string },
@@ -150,6 +167,5 @@ export async function deleteTicket(ticketId: string): Promise<void> {
   await request<{ message: string }>('/ticket/delete', {
     method: 'DELETE',
     query: { id: ticketId },
-    admin: true,
   })
 }

@@ -10,6 +10,7 @@ import InlineAlert from '@/shared/components/ui/InlineAlert.vue'
 import PageErrorState from '@/shared/components/ui/PageErrorState.vue'
 import StatusBadge from '@/shared/components/ui/StatusBadge.vue'
 import DeleteTicketDialog from '@/modules/tech/tickets/components/DeleteTicketDialog.vue'
+import AssignTechnicianDialog from '@/modules/tech/tickets/components/AssignTechnicianDialog.vue'
 import TicketStatusSelect from '@/modules/tech/tickets/components/TicketStatusSelect.vue'
 import { useTicketsStore } from '@/stores/tickets.store'
 import { useAuthStore } from '@/stores/auth.store'
@@ -30,6 +31,10 @@ const reply = ref('')
 const replySaved = ref(false)
 const saveError = ref('')
 const deleteOpen = ref(false)
+const assignOpen = ref(false)
+
+const assignee = computed(() => ticket.value?.assignee ?? null)
+const assignedToMe = computed(() => assignee.value?.id === auth.user?.id)
 
 const dirty = computed(
   () => Boolean(ticket.value) && (status.value !== ticket.value?.status || reply.value !== ticket.value?.reply),
@@ -74,6 +79,27 @@ function cancel(): void {
   reply.value = ticket.value.reply
   replySaved.value = false
   saveError.value = ''
+}
+
+async function assignSelf(): Promise<void> {
+  if (!ticket.value) return
+  try {
+    await store.assignTo(ticket.value.id)
+    ui.pushToast('success', 'Ticket asignado a ti')
+  } catch (cause) {
+    ui.pushToast('error', cause instanceof Error ? cause.message : 'No se pudo asignar el ticket.')
+  }
+}
+
+async function confirmAssign(technicianId: string): Promise<void> {
+  if (!ticket.value) return
+  try {
+    await store.assignTo(ticket.value.id, technicianId)
+    assignOpen.value = false
+    ui.pushToast('success', 'Ticket asignado correctamente')
+  } catch (cause) {
+    ui.pushToast('error', cause instanceof Error ? cause.message : 'No se pudo asignar el ticket.')
+  }
 }
 
 async function confirmDelete(): Promise<void> {
@@ -152,10 +178,6 @@ onMounted(async () => {
           <h3 class="text-[18px] font-semibold leading-[1.5] text-ink">Descripción de la incidencia</h3>
           <div class="mt-3 space-y-4 text-[14px] leading-[1.5] text-secondary">
             <p>{{ ticket.description }}</p>
-            <p v-if="ticket.id === '1042'">
-              Ocurre con Visa y Mastercard. Hemos probado en distintos navegadores y el error persiste.
-              Referencia de la operación: PLP-88214.
-            </p>
           </div>
         </section>
 
@@ -184,6 +206,40 @@ onMounted(async () => {
           <div class="mt-2">
             <TicketStatusSelect v-model="status" />
           </div>
+
+          <div class="mt-5 flex items-center justify-between gap-3">
+            <div>
+              <p class="text-[14px] font-medium leading-[1.5] text-ink">Responsable</p>
+              <p class="mt-1 text-[12px] leading-[1.5] text-muted">
+                {{ assignee?.name ?? 'Sin asignar' }}
+              </p>
+            </div>
+            <AppButton
+              v-if="auth.role === 'admin'"
+              variant="secondary"
+              size="sm"
+              class="min-w-[132px]"
+              @click="assignOpen = true"
+            >
+              {{ assignee ? 'Reasignar' : 'Asignar técnico' }}
+            </AppButton>
+            <AppButton
+              v-else-if="!assignee"
+              variant="secondary"
+              size="sm"
+              class="min-w-[132px]"
+              @click="assignSelf"
+            >
+              Asígnamelo
+            </AppButton>
+            <span
+              v-else-if="assignedToMe"
+              class="inline-flex h-9 items-center rounded-md bg-success-bg px-3 text-[12px] font-semibold text-success-text"
+            >
+              Asignado a ti
+            </span>
+          </div>
+
           <div class="mt-5 space-y-3">
             <AppButton block :loading="store.saving" @click="save">Guardar cambios</AppButton>
             <AppButton variant="secondary" block @click="cancel">Cancelar</AppButton>
@@ -198,7 +254,7 @@ onMounted(async () => {
           </div>
         </section>
 
-        <div v-if="auth.role === 'admin'">
+        <div>
           <AppButton variant="danger" block @click="deleteOpen = true">Eliminar ticket</AppButton>
           <p class="mt-2 text-center text-[12px] leading-[1.5] text-muted">Esta acción es permanente.</p>
         </div>
@@ -211,6 +267,13 @@ onMounted(async () => {
       :loading="store.saving"
       @confirm="confirmDelete"
       @cancel="deleteOpen = false"
+    />
+
+    <AssignTechnicianDialog
+      :open="assignOpen"
+      :loading="store.saving"
+      @confirm="confirmAssign"
+      @cancel="assignOpen = false"
     />
   </div>
 </template>

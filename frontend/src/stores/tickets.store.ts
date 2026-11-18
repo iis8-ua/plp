@@ -1,7 +1,8 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import type { Ticket, TicketFilters, TicketStatus } from '@/types'
-import { deleteTicket, fetchTickets, updateTicket } from '@/services/tickets.service'
+import { assignTicket, deleteTicket, fetchTickets, updateTicket } from '@/services/tickets.service'
+import { useAuthStore } from '@/stores/auth.store'
 import { isWithinDays } from '@/shared/utils/format'
 
 const DEFAULT_FILTERS: TicketFilters = {
@@ -10,6 +11,7 @@ const DEFAULT_FILTERS: TicketFilters = {
   company: 'todos',
   date: 'cualquiera',
   sort: 'abiertos-antiguos',
+  assignee: 'todos',
 }
 
 function todayISODate(): string {
@@ -19,6 +21,7 @@ function todayISODate(): string {
 }
 
 export const useTicketsStore = defineStore('tickets', () => {
+  const auth = useAuthStore()
   const tickets = ref<Ticket[]>([])
   const loading = ref(false)
   const saving = ref(false)
@@ -42,9 +45,12 @@ export const useTicketsStore = defineStore('tickets', () => {
   const filtered = computed(() => {
     const search = filters.search.trim().toLowerCase()
     const today = todayISODate()
+    const userId = auth.user?.id
     return tickets.value.filter((ticket) => {
       if (filters.status !== 'todos' && ticket.status !== filters.status) return false
       if (filters.company !== 'todos' && ticket.merchant !== filters.company) return false
+      if (filters.assignee === 'mios' && ticket.assignee?.id !== userId) return false
+      if (filters.assignee === 'sin-asignar' && ticket.assignee) return false
       if (filters.date === 'hoy' && !ticket.createdAt.startsWith(today)) return false
       if (filters.date === '7d' && !isWithinDays(ticket.createdAt, 7)) return false
       if (filters.date === '30d' && !isWithinDays(ticket.createdAt, 30)) return false
@@ -52,7 +58,8 @@ export const useTicketsStore = defineStore('tickets', () => {
       return (
         ticket.id.toLowerCase().includes(search) ||
         ticket.merchant.toLowerCase().includes(search) ||
-        ticket.subject.toLowerCase().includes(search)
+        ticket.subject.toLowerCase().includes(search) ||
+        (ticket.assignee?.name.toLowerCase().includes(search) ?? false)
       )
     })
   })
@@ -66,11 +73,7 @@ export const useTicketsStore = defineStore('tickets', () => {
       return list.sort((a, b) => a.createdAt.localeCompare(b.createdAt))
     }
     const priority: Record<TicketStatus, number> = { abierto: 0, 'en-proceso': 1, cerrado: 2 }
-    const featured = new Set(['1042', '1043', '1045', '1038', '1035'])
     return list.sort((a, b) => {
-      const aFeatured = featured.has(a.id) ? 0 : 1
-      const bFeatured = featured.has(b.id) ? 0 : 1
-      if (aFeatured !== bFeatured) return aFeatured - bFeatured
       if (priority[a.status] !== priority[b.status]) return priority[a.status] - priority[b.status]
       if (a.status === 'abierto') return a.createdAt.localeCompare(b.createdAt)
       return b.updatedAt.localeCompare(a.updatedAt)
@@ -151,6 +154,24 @@ export const useTicketsStore = defineStore('tickets', () => {
     }
   }
 
+  async function assignTo(ticketId: string, technicianId?: string): Promise<Ticket> {
+    saving.value = true
+    error.value = ''
+    try {
+      const updated = technicianId
+        ? await assignTicket(ticketId, { technicianId })
+        : await assignTicket(ticketId, { assignToMe: true })
+      const index = tickets.value.findIndex((ticket) => ticket.id === ticketId)
+      if (index >= 0) tickets.value[index] = updated
+      return updated
+    } catch (cause) {
+      error.value = cause instanceof Error ? cause.message : 'No se pudo asignar el ticket.'
+      throw cause
+    } finally {
+      saving.value = false
+    }
+  }
+
   function clearFilters(): void {
     Object.assign(filters, DEFAULT_FILTERS)
     page.value = 1
@@ -178,6 +199,7 @@ export const useTicketsStore = defineStore('tickets', () => {
     getById,
     saveTicket,
     removeTicket,
+    assignTo,
     clearFilters,
   }
 })
