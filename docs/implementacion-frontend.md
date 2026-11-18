@@ -133,7 +133,7 @@ Documento de progreso y decisiones de la implementación realizada a partir de `
   - Comercio: datos fiscales, dirección, contacto y cambio de contraseña.
   - Acceso desde el bloque de perfil de la barra lateral.
 - **Alta de comercio** pasa de modal a página completa con datos fiscales, dirección y contacto.
-- La barra lateral muestra “Comercios” también al técnico (con acceso restringido) y “Técnicos” solo al administrador.
+- La barra lateral muestra “Comercios” y “Técnicos” solo al administrador; el técnico que entra por URL directa a Comercios ve el acceso restringido.
 
 ### FASE 6 — Responsive y revisión visual ✅
 

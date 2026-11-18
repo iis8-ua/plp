@@ -33,11 +33,9 @@ const items = computed<NavItem[]>(() => {
     ]
   }
 
-  const techItems: NavItem[] = [
-    { label: 'Tickets', to: '/tecnico/tickets', icon: 'ticket' },
-    { label: 'Comercios', to: '/tecnico/comercios', icon: 'shop' },
-  ]
+  const techItems: NavItem[] = [{ label: 'Tickets', to: '/tecnico/tickets', icon: 'ticket' }]
   if (auth.role === 'admin') {
+    techItems.push({ label: 'Comercios', to: '/tecnico/comercios', icon: 'shop' })
     techItems.push({ label: 'Técnicos', to: '/tecnico/tecnicos', icon: 'inbox' })
   }
   return techItems
