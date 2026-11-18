@@ -194,6 +194,15 @@ export interface CompanyForm {
   telefono: string
   email: string
   web: string
+  username: string
+  password: string
+  forceChange: boolean
+}
+
+export interface CreatedCompany {
+  company: Company
+  username: string
+  password: string
 }
 
 export interface CompanyFilters {

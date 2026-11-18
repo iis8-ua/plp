@@ -1,4 +1,4 @@
-import type { Company, CompanyForm } from '@/types'
+import type { Company, CompanyForm, CreatedCompany } from '@/types'
 import { request } from '@/services/http'
 import { initials, normalizeApiDate } from '@/shared/utils/format'
 
@@ -25,12 +25,22 @@ export async function fetchCompanies(): Promise<Company[]> {
   return response.map(mapApiCompany)
 }
 
-export async function createCompany(payload: CompanyForm): Promise<Company> {
-  const response = await request<ApiCompany>('/companies/add', {
+interface ApiCompanyCreated extends ApiCompany {
+  username: string
+  password: string
+}
+
+export async function createCompany(payload: CompanyForm): Promise<CreatedCompany> {
+  const { forceChange, ...company } = payload
+  const response = await request<ApiCompanyCreated>('/companies/add', {
     method: 'PUT',
-    body: payload,
+    body: { ...company, force_change: forceChange },
   })
-  return mapApiCompany(response)
+  return {
+    company: mapApiCompany(response),
+    username: response.username,
+    password: response.password,
+  }
 }
 
 /** Baja lógica: la empresa conserva su histórico y pasa a `dado-de-baja`. */

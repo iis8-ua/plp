@@ -122,3 +122,6 @@ class CompanyCreateRequestSerializer(serializers.Serializer):
     telefono = serializers.CharField(max_length=30)
     email = serializers.EmailField()
     web = serializers.CharField(required=False, allow_blank=True, max_length=200)
+    username = serializers.CharField(max_length=50)
+    password = serializers.CharField(min_length=8, write_only=True)
+    force_change = serializers.BooleanField(required=False, default=True)

@@ -10,7 +10,7 @@ import AppPagination from '@/shared/components/ui/AppPagination.vue'
 import AppSelect from '@/shared/components/ui/AppSelect.vue'
 import EmptyState from '@/shared/components/ui/EmptyState.vue'
 import NewTechnicianDialog from '@/modules/tech/technicians/components/NewTechnicianDialog.vue'
-import TechnicianCreatedDialog from '@/modules/tech/technicians/components/TechnicianCreatedDialog.vue'
+import AccountCreatedDialog from '@/shared/components/ui/AccountCreatedDialog.vue'
 import TechnicianDetailDialog from '@/modules/tech/technicians/components/TechnicianDetailDialog.vue'
 import { useTechniciansStore } from '@/stores/technicians.store'
 import { useUiStore } from '@/stores/ui.store'
@@ -196,9 +196,12 @@ onMounted(() => {
       @cancel="newOpen = false"
     />
 
-    <TechnicianCreatedDialog
+    <AccountCreatedDialog
       :open="createdOpen"
-      :technician="created"
+      title="Técnico creado"
+      :name="created?.name ?? ''"
+      :username="created?.username ?? ''"
+      :password="created?.password ?? ''"
       @close="closeCreated"
       @create-another="createAnother"
     />

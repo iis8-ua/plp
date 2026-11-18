@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive } from 'vue'
+import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useMerchantsStore } from '@/stores/merchants.store'
 import { useUiStore } from '@/stores/ui.store'
@@ -7,15 +7,19 @@ import AppBreadcrumbs from '@/shared/components/layout/AppBreadcrumbs.vue'
 import AppButton from '@/shared/components/ui/AppButton.vue'
 import AppInput from '@/shared/components/ui/AppInput.vue'
 import AppSelect from '@/shared/components/ui/AppSelect.vue'
+import AccountCreatedDialog from '@/shared/components/ui/AccountCreatedDialog.vue'
 import { createCompany } from '@/services/companies.service'
 import { COMPANY_ACTIVITIES, COMPANY_TYPES, COUNTRIES, PROVINCES } from '@/shared/utils/company'
-import type { CompanyForm } from '@/types'
+import type { CompanyForm, CreatedCompany } from '@/types'
 
 const router = useRouter()
 const store = useMerchantsStore()
 const ui = useUiStore()
 
-const form = reactive<CompanyForm>({
+const created = ref<CreatedCompany | null>(null)
+const createdOpen = ref(false)
+
+const defaultForm = (): CompanyForm => ({
   nombre: '',
   razon_social: '',
   cif: '',
@@ -29,7 +33,12 @@ const form = reactive<CompanyForm>({
   telefono: '',
   email: '',
   web: '',
+  username: '',
+  password: '',
+  forceChange: true,
 })
+
+const form = reactive<CompanyForm>(defaultForm())
 
 const errors = reactive<Record<string, string>>({})
 
@@ -46,6 +55,7 @@ const REQUIRED: Array<[keyof CompanyForm, string]> = [
   ['pais', 'Selecciona un país'],
   ['telefono', 'El teléfono es obligatorio'],
   ['email', 'El correo electrónico es obligatorio'],
+  ['username', 'El usuario de acceso es obligatorio'],
 ]
 
 function validate(): boolean {
@@ -56,19 +66,45 @@ function validate(): boolean {
   if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
     errors.email = 'Introduce un correo válido'
   }
+  if (form.password.length < 8) {
+    errors.password = 'La contraseña debe tener al menos 8 caracteres'
+  }
   return Object.keys(errors).length === 0
+}
+
+function generatePassword(): void {
+  const firstName = form.nombre.trim().split(/\s+/)[0] || 'Comercio'
+  form.password = `PLP!${firstName}${new Date().getFullYear()}#`
+  errors.password = ''
+}
+
+function resetForm(): void {
+  Object.assign(form, defaultForm())
+  Object.keys(errors).forEach((key) => delete errors[key])
 }
 
 async function submit(): Promise<void> {
   if (!validate()) return
   try {
-    await createCompany({ ...form })
+    created.value = await createCompany({ ...form })
     await store.load(true)
-    ui.pushToast('success', `Comercio ${form.nombre} creado correctamente`)
-    void router.push('/tecnico/comercios')
+    createdOpen.value = true
   } catch (cause) {
     ui.pushToast('error', cause instanceof Error ? cause.message : 'No se pudo crear el comercio.')
   }
+}
+
+function closeCreated(): void {
+  createdOpen.value = false
+  created.value = null
+  ui.pushToast('success', `Comercio ${form.nombre} creado correctamente`)
+  void router.push('/tecnico/comercios')
+}
+
+function createAnother(): void {
+  createdOpen.value = false
+  created.value = null
+  resetForm()
 }
 </script>
 
@@ -123,9 +159,54 @@ async function submit(): Promise<void> {
       </div>
     </section>
 
+    <section class="rounded-lg border border-line bg-white p-6">
+      <h2 class="text-[18px] font-semibold leading-[1.5] text-ink">Acceso al portal</h2>
+      <p class="mt-1 text-[13px] leading-[1.5] text-muted">
+        Crea la cuenta con la que el comercio entrará en PLP.
+      </p>
+      <div class="mt-5 grid grid-cols-1 gap-x-6 gap-y-4 lg:grid-cols-2">
+        <AppInput
+          v-model="form.username"
+          label="Usuario *"
+          placeholder="Ej. libreriahorizonte"
+          :error="errors.username"
+        />
+        <div>
+          <AppInput
+            v-model="form.password"
+            label="Contraseña inicial *"
+            placeholder="Mínimo 8 caracteres"
+            revealable
+            :error="errors.password"
+          />
+          <AppButton variant="secondary" size="sm" class="mt-2" @click="generatePassword">
+            Generar contraseña
+          </AppButton>
+        </div>
+      </div>
+      <label class="mt-4 flex items-center gap-3 text-[13px] leading-[1.5] text-ink">
+        <input
+          v-model="form.forceChange"
+          type="checkbox"
+          class="size-4 rounded border-line text-brand-700 focus:ring-brand-700"
+        />
+        Obligar a cambiar la contraseña en el primer acceso
+      </label>
+    </section>
+
     <div class="flex justify-end gap-3">
       <AppButton variant="secondary" to="/tecnico/comercios">Cancelar</AppButton>
       <AppButton :loading="store.saving" @click="submit">Crear comercio</AppButton>
     </div>
+
+    <AccountCreatedDialog
+      :open="createdOpen"
+      title="Comercio creado"
+      :name="created?.company.name ?? form.nombre"
+      :username="created?.username ?? ''"
+      :password="created?.password ?? ''"
+      @close="closeCreated"
+      @create-another="createAnother"
+    />
   </div>
 </template>

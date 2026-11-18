@@ -434,17 +434,43 @@ def companies(request):
 def company_add(request):
     serializer = CompanyCreateRequestSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
+    data = dict(serializer.validated_data)
+
+    username = data.pop('username').strip()
+    password = data.pop('password')
+    force_change = data.pop('force_change', True)
+
+    if User.objects.filter(username__iexact=username).exists():
+        return error_response(
+            'USERNAME_TAKEN', 'Ese nombre de usuario ya existe.', status.HTTP_400_BAD_REQUEST
+        )
 
     with transaction.atomic():
-        company = Empresa.objects.create(**serializer.validated_data)
+        company = Empresa.objects.create(**data)
         SaldoEmpresa.objects.bulk_create(
             [
                 SaldoEmpresa(empresa=company, moneda=moneda, saldo=Decimal('0'))
                 for moneda in Moneda.objects.all()
             ]
         )
+        user = User.objects.create_user(
+            username=username,
+            email=data['email'],
+            password=password,
+            first_name=data['nombre'],
+            last_name='',
+        )
+        PerfilUsuario.objects.create(
+            usuario=user,
+            rol=PerfilUsuario.Rol.COMERCIO,
+            empresa=company,
+            force_password_change=force_change,
+        )
 
-    return Response(presenters.company_payload(company), status=status.HTTP_200_OK)
+    payload = presenters.company_payload(company)
+    payload['username'] = username
+    payload['password'] = password
+    return Response(payload, status=status.HTTP_200_OK)
 
 
 def company_for_admin(company_id):

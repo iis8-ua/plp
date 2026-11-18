@@ -333,11 +333,11 @@ paths:
               $ref: "#/components/schemas/CompanyCreateRequest"
       responses:
         "200":
-          description: Todo correcto; empresa añadida.
+          description: Todo correcto; empresa y cuenta de acceso creadas.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Company"
+                $ref: "#/components/schemas/CompanyCreated"
         "400":
           $ref: "#/components/responses/BadRequest"
         "403":
@@ -1721,6 +1721,8 @@ components:
         - pais
         - telefono
         - email
+        - username
+        - password
       properties:
         nombre:
           type: string
@@ -1762,3 +1764,33 @@ components:
         web:
           type: string
           example: https://libreriahorizonte.es
+        username:
+          type: string
+          description: Usuario de acceso al portal del comercio.
+          example: libreriahorizonte
+        password:
+          type: string
+          minLength: 8
+          description: Contraseña inicial del comercio.
+          example: PLP!Libreria2026#
+        force_change:
+          type: boolean
+          default: true
+          description: Obliga a cambiar la contraseña en el primer acceso.
+          example: true
+
+    CompanyCreated:
+      allOf:
+        - $ref: "#/components/schemas/Company"
+        - type: object
+          required:
+            - username
+            - password
+          properties:
+            username:
+              type: string
+              example: libreriahorizonte
+            password:
+              type: string
+              description: Contraseña inicial; solo se devuelve al crear el comercio.
+              example: PLP!Libreria2026#

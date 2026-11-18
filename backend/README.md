@@ -79,7 +79,8 @@ Los roles se guardan en `pagos.PerfilUsuario`. Las rutas de administrador (`/com
   el administrador puede asignar a cualquier técnico, el técnico puede asignarse el ticket y
   desasignarse los suyos.
 - **Empresas**: datos fiscales y de contacto (`razon_social`, `cif`, `tipo_empresa`,
-  `actividad_economica`, dirección, contacto y web) además del nombre y estado.
+  `actividad_economica`, dirección, contacto y web) además del nombre y estado. El alta crea
+  también la cuenta de acceso del comercio (usuario, contraseña inicial y rol `comercio`).
 - **Técnicos**: usuarios con rol `tecnico`; el administrador puede listarlos y crear nuevos accesos
   desde `/technicians`. La contraseña inicial solo se devuelve en la creación.
 - **Perfil**: `/profile` devuelve y actualiza los datos del usuario (o de la empresa si es un

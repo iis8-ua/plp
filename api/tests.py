@@ -266,6 +266,9 @@ class ApiTests(APITestCase):
                 'pais': 'España',
                 'telefono': '+34 600 000 000',
                 'email': 'prueba@example.com',
+                'username': 'prueba',
+                'password': 'PLP!Prueba2026#',
+                'force_change': True,
             },
             format='json',
         )
@@ -273,9 +276,19 @@ class ApiTests(APITestCase):
         company_id = created.data['id']
         self.assertEqual(created.data['status'], 'activo')
         self.assertEqual(created.data['razon_social'], 'Prueba, S.L.')
+        self.assertEqual(created.data['username'], 'prueba')
+        self.assertEqual(created.data['password'], 'PLP!Prueba2026#')
         self.assertEqual(
             SaldoEmpresa.objects.filter(empresa_id=company_id).count(), 3
         )
+
+        login = self.client.post(
+            '/login?user=prueba', {'password': 'PLP!Prueba2026#'}, format='json'
+        )
+        self.assertEqual(login.status_code, 200)
+        self.assertEqual(login.data['user']['role'], 'comercio')
+        self.assertEqual(login.data['user']['company_id'], company_id)
+        self.assertTrue(login.data['user']['force_password_change'])
 
         deleted = self.client.delete(f'/companies/delete?id={company_id}')
         self.assertEqual(deleted.status_code, 200)

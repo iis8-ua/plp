@@ -132,7 +132,7 @@ Documento de progreso y decisiones de la implementación realizada a partir de `
   - Administrador y técnico: datos personales, actividad y cambio de contraseña.
   - Comercio: datos fiscales, dirección, contacto y cambio de contraseña.
   - Acceso desde el bloque de perfil de la barra lateral.
-- **Alta de comercio** pasa de modal a página completa con datos fiscales, dirección y contacto.
+- **Alta de comercio** pasa de modal a página completa con datos fiscales, dirección y contacto. Al crearlo se genera también su cuenta de acceso y se muestran las credenciales una sola vez.
 - La barra lateral muestra “Comercios” y “Técnicos” solo al administrador; el técnico que entra por URL directa a Comercios ve el acceso restringido.
 
 ### FASE 6 — Responsive y revisión visual ✅
