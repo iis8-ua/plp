@@ -2,7 +2,7 @@
 
 Proyecto Django + Django REST Framework que implementa **sólo las rutas, la autenticación simulada y los códigos de estado** definidos en `../api/api.yaml`. La lógica de negocio sigue siendo mock; MySQL se configura para el despliegue pero los mocks todavía no consultan tablas propias.
 
-El proyecto (`manage.py`, `tpv/`) sigue en `backend/`; la app Django que implementa la API está en `../api/`, junto a la especificación.
+El proyecto (`manage.py`, `tpv/`) y la app Django con el modelo de datos (`pagos/`) están en `backend/`; la app que implementa la API mock está en `../api/`, junto a la especificación.
 
 ## Arrancar
 
@@ -17,7 +17,7 @@ python manage.py runserver
 Tests de los códigos de estado:
 
 ```bash
-python manage.py test api
+python manage.py test api pagos
 ```
 
 Verificación del esquema generado desde el código:
