@@ -31,8 +31,11 @@ jobs:
       - name: Comprobación del proyecto Django
         run: python manage.py check
 
-      - name: Tests de la API
-        run: python manage.py test api -v 2
+      - name: Comprobar que no faltan migraciones
+        run: python manage.py makemigrations --check --dry-run
+
+      - name: Tests del backend
+        run: python manage.py test api pagos -v 2
 
       - name: Validar el OpenAPI generado desde el código
         run: python manage.py spectacular --file /tmp/api.from-code.yaml --validate
