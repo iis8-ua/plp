@@ -1,5 +1,5 @@
 import { computed, reactive, ref } from 'vue'
-import { defineStore } from 'pinia'
+import { acceptHMRUpdate, defineStore } from 'pinia'
 import type { Technician, TechnicianCreatePayload } from '@/types'
 import { createTechnician, deactivateTechnician, fetchTechnicians, reactivateTechnician } from '@/services/technicians.service'
 
@@ -87,3 +87,7 @@ export const useTechniciansStore = defineStore('technicians', () => {
 
   return { technicians, loading, saving, error, loaded, filters, stats, filtered, load, create, setActive, clearFilters }
 })
+
+if (import.meta.hot) {
+  import.meta.hot.accept(acceptHMRUpdate(useTechniciansStore, import.meta.hot))
+}
