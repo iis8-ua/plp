@@ -1,17 +1,3 @@
--- ============================================================================
--- PLP · Pasa La Pasta — esquema de datos actual
---
--- Refleja el modelo implementado en backend/pagos (migraciones 0001–0004).
--- Django gestiona además las tablas auth_user, auth_group, auth_permission,
--- django_* y authtoken_token; aquí solo se referencian las necesarias.
---
--- Notas:
---   * UUIDField en MySQL se almacena como CHAR(32) sin guiones.
---   * Las fechas usan DATETIME(6) (Django DateTimeField).
---   * Los catálogos se siembran con UUID fijos para que la migración sea
---     reproducible; `seed_demo` completa empresas, usuarios, pagos y tickets.
--- ============================================================================
-
 CREATE TABLE METODOS_PAGO (
     ID     CHAR(32)    NOT NULL,
     NOMBRE VARCHAR(30) NOT NULL,
@@ -92,13 +78,14 @@ CREATE TABLE TRANSACCIONES (
     INFORMACION_ID CHAR(32)      NOT NULL,
     CONCEPTO       VARCHAR(255)  NOT NULL,
     CANTIDAD       DECIMAL(12,2) NOT NULL,
-    COMISION       DECIMAL(12,2) NOT NULL DEFAULT 0,
+    COMISION       DECIMAL(12,2) NOT NULL DEFAULT 0,   -- reservado; la API no aplica comisión
     MONEDA         CHAR(3)       NOT NULL,
     ESTADO         VARCHAR(11)   NOT NULL DEFAULT 'PENDIENTE',
                    -- PENDIENTE | APROBADA | RECHAZADA | REEMBOLSADA
     FECHA          DATETIME(6)   NOT NULL,
-    NUM_FACTURA    VARCHAR(30),                          -- NULL si aún no hay factura
+    NUM_FACTURA    VARCHAR(30), 
     REFERENCIA     VARCHAR(20),                          -- P-1048
+    MOTIVO         VARCHAR(255) NOT NULL DEFAULT '',     -- último motivo del estado                   
     PRIMARY KEY (ID),
     UNIQUE KEY UQ_TX_INFO (INFORMACION_ID),
     UNIQUE KEY UQ_TX_FACTURA (RECEPTOR_ID, NUM_FACTURA),
@@ -107,6 +94,18 @@ CREATE TABLE TRANSACCIONES (
     CONSTRAINT FK_TX_MONEDA   FOREIGN KEY (MONEDA)         REFERENCES MONEDAS (CODIGO),
     CONSTRAINT CHK_TX_CANTIDAD CHECK (CANTIDAD > 0),
     CONSTRAINT CHK_TX_COMISION CHECK (COMISION >= 0 AND COMISION <= CANTIDAD)
+);
+
+
+CREATE TABLE TRANSACCION_HISTORIAL (
+    ID              CHAR(32)     NOT NULL,
+    TRANSACCION_ID  CHAR(32)     NOT NULL,
+    ESTADO          VARCHAR(11)  NOT NULL,
+                    -- PENDIENTE | APROBADA | RECHAZADA | REEMBOLSADA
+    MOTIVO          VARCHAR(255) NOT NULL DEFAULT '',
+    FECHA           DATETIME(6)  NOT NULL,
+    PRIMARY KEY (ID),
+    CONSTRAINT FK_TX_HISTORIAL FOREIGN KEY (TRANSACCION_ID) REFERENCES TRANSACCIONES (ID) ON DELETE CASCADE
 );
 
 CREATE TABLE REEMBOLSOS (
@@ -132,7 +131,6 @@ CREATE TABLE SALDOS_EMPRESAS (
     CONSTRAINT CHK_SALDOS_NO_NEGATIVO CHECK (SALDO >= 0)
 );
 
--- Tickets de soporte. NUMERO es el identificador visible (1086…).
 CREATE TABLE TICKETS (
     ID           CHAR(32)     NOT NULL,
     NUMERO       INT UNSIGNED NOT NULL,
@@ -174,17 +172,3 @@ CREATE TABLE TICKET_HISTORIAL (
     CONSTRAINT FK_HISTORIAL_AUTOR  FOREIGN KEY (AUTOR_ID)  REFERENCES auth_user (ID)
 );
 
--- ---------------------------------------------------------------------------
--- Semilla de catálogos (equivalente a pagos.0002_seed_catalogos + seed_demo)
--- ---------------------------------------------------------------------------
-
-INSERT INTO METODOS_PAGO (ID, NOMBRE) VALUES
-    ('f47ac10b58cc4372a5670e02b2c3d479', 'Tarjeta'),
-    ('6fa459eaee8a4ca4894edb77e160355e', 'Transferencia'),
-    ('16fd27068baf433b82eb8c7fada847da', 'Bizum'),
-    ('8b7c6d5e4f3a29180716253443526170', 'Efectivo');
-
-INSERT INTO MONEDAS (CODIGO, NOMBRE, DECIMALES) VALUES
-    ('EUR', 'Euro', 2),
-    ('USD', 'Dólar estadounidense', 2),
-    ('GBP', 'Libra esterlina', 2);

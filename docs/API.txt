@@ -1,16 +1,10 @@
 PLP · PASA LA PASTA
-API REST/JSON — estado actual de la implementación
-
-Base: /api en el frontend (nginx/Vite lo redirigen al backend)
-Formato: application/json
-Errores: { "code": "...", "message": "..." }
 
 AUTENTICACIÓN
 =============
 Cabecera: Authorization: Bearer <token>
 El token lo devuelve POST /login y es un token de DRF.
 POST /logout invalida el token de la sesión.
-`expires_in` es informativo: actualmente el token no caduca.
 
 Roles: admin | tecnico | comercio
 - admin: gestiona comercios, técnicos y puede asignar/eliminar tickets.
@@ -60,24 +54,26 @@ Body: {
   products: [ { product_id, name, quantity, unit_price } ],
   payment_data: { card_number?, expiry?, cvv?, holder?, iban? }
 }
-= 200: { transaction_id, status: "approved", authorized_amount }
+= 200: { transaction_id, status: "approved", authorized_amount, balance }
 = 400: cuerpo mal formado
 = 403: usuario sin empresa
+= 422: pago rechazado (tarjeta terminada en 0002); no se abona al saldo
 
 Notas:
-- Crea una transacción APROBADA (no hay pasarela real).
-- Guarda titular, método y, si es tarjeta, marca/últimos 4/caducidad/token.
+- El pago se crea en PENDIENTE, se procesa y termina en APROBADA o RECHAZADA.
+- Al aprobarse se abona el importe completo al saldo (sin comisión).
+- Se guarda un evento de historial por cada cambio de estado y el motivo.
+- La moneda es EUR.
 - No se almacenan PAN completo ni CVV.
-- No incrementa el saldo del comercio (pendiente de implementar).
-- La moneda es EUR; no se acepta moneda en el cuerpo.
 
 GET /payments
 Cabecera Bearer. Requiere empresa.
 = 200: array de {
   transaction_id, reference, client, invoice, concept, amount,
-  currency, payment_method, status, created_at
+  currency, payment_method, status, reason, history, created_at
 }
 status: pending | approved | rejected | refunded
+history: [ { id, status, reason, created_at } ]
 Solo devuelve los pagos de la empresa autenticada.
 
 DEVOLUCIONES
@@ -85,9 +81,9 @@ DEVOLUCIONES
 POST /refunds/request?transaction_id=<uuid>&reason=<texto opcional>
 Cabecera Bearer. Requiere empresa.
 = 202: { request_id, transaction_id, status: "pending" }
+= 400: el pago no está aprobado (PAYMENT_NOT_REFUNDABLE)
 = 404: transacción inexistente o de otra empresa
 = 409: ya existe una devolución pendiente para esa transacción
-La devolución es siempre por el importe total del pago.
 
 POST /refunds/accept?id=<uuid de devolución>
 Cabecera Bearer. Requiere empresa.
@@ -111,32 +107,30 @@ Cabecera Bearer. Requiere empresa.
   reason, status, created_at
 }
 status: pending | accepted | rejected
-Solo devoluciones de las transacciones de la empresa autenticada.
 
 EMPRESAS
 ========
-GET /companies        (solo admin)
-= 200: array de Company (datos fiscales y de contacto incluidos)
+GET /companies(solo admin)
+= 200: array de Company
 = 403: no admin
 
-PUT /companies/add    (solo admin)
+PUT /companies/add(solo admin)
 Body JSON:
 {
   nombre, razon_social, cif, tipo_empresa, actividad_economica,
   direccion, codigo_postal, ciudad, provincia, pais, telefono, email,
   web?, username, password, force_change?
 }
-= 200: Company + { username, password }  (credenciales solo al crear)
+= 200: Company + { username, password }
 = 400: datos inválidos, usuario duplicado o contraseña < 8
 = 403: no admin
-Crea la empresa, sus 3 saldos y la cuenta de acceso con rol comercio.
 
-DELETE /companies/delete?id=<uuid>    (solo admin)
-= 200: Company con status "dado-de-baja" (baja lógica)
+DELETE /companies/delete?id=<uuid>(solo admin)
+= 200: Company con status "dado-de-baja"
 = 403: no admin
 = 404: empresa inexistente
 
-PUT /companies/reactivate?id=<uuid>   (solo admin)
+PUT /companies/reactivate?id=<uuid>(solo admin)
 = 200: Company con status "activo"
 = 403: no admin
 = 404: empresa inexistente
@@ -193,7 +187,6 @@ Cabecera Bearer. Solo tecnico/admin.
 = 200: { message }
 = 403: comercio
 = 404: ticket inexistente
-(El borrado es físico y elimina mensajes e historial en cascada.)
 
 Ticket = {
   id (número como string), company_id, company_name,
@@ -206,7 +199,7 @@ Ticket = {
 
 TÉCNICOS
 ========
-GET /technicians        (solo admin)
+GET /technicians(solo admin)
 = 200: array de {
   id, name, email, username, role: "tecnico",
   status: "Activo|Inactivo",
@@ -214,7 +207,7 @@ GET /technicians        (solo admin)
 }
 = 403: no admin
 
-POST /technicians       (solo admin)
+POST /technicians(solo admin)
 Body: {
   name, email, username, password (mín. 8), force_change?
 }
@@ -235,9 +228,7 @@ Cabecera Bearer.
 
 PUT /profile
 Cabecera Bearer.
-- comercio: actualiza datos de su empresa (nombre, razón social, CIF,
-  tipo, actividad, dirección, CP, ciudad, provincia, país, teléfono,
-  email, web).
+- comercio: actualiza datos de su empresa (nombre, razón social, CIF, tipo, actividad, dirección, CP, ciudad, provincia, país, teléfono, email, web).
 - admin/técnico: actualiza name y email.
 = 200: Profile actualizado
 = 400: datos inválidos
@@ -247,11 +238,3 @@ Cabecera Bearer.
 Body: { current_password, new_password (mín. 8) }
 = 200: { message }
 = 400: contraseña actual incorrecta o nueva demasiado corta
-
-DATOS DE DEMOSTRACIÓN (seed_demo)
-=================================
-admin / admin                 → admin
-tpv01 / secret                → técnico
-comercio / comercio           → comercio (Librería Horizonte)
-cruiz, dtorres, egarcia,
-msanchez, promero / tecnico123 → técnicos

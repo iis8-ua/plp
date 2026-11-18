@@ -18,7 +18,6 @@ La implementación actual es una **API REST/JSON** sobre Django + Django REST Fr
 - Saldo por moneda y retirada de fondos.
 - Tickets de soporte con conversación, historial, asignación y desasignación.
 - Gestión de técnicos (listado y alta) y perfiles de usuario con cambio de contraseña.
-- Datos de demostración mediante `seed_demo`.
 
 ### 2.2 Fuera del alcance / pendiente
 
@@ -76,13 +75,13 @@ La implementación actual es una **API REST/JSON** sobre Django + Django REST Fr
 | RF-15 | Registrar un pago con importe, método, productos y datos de pago. Requiere usuario con empresa. | `POST /pay` | Must |
 | RF-16 | El pago registra comercio receptor, concepto, importe, moneda, referencia, factura (nullable), fecha y estado. | — | Must |
 | RF-17 | Estados del pago: `PENDIENTE`, `APROBADA`, `RECHAZADA`, `REEMBOLSADA`. La API los expone como `pending`, `approved`, `rejected`, `refunded`. | — | Must |
-| RF-18 | `POST /pay` crea la transacción directamente en `APROBADA` (no hay pasarela real ni motivos de rechazo simulados). | `POST /pay` | Must |
+| RF-18 | `POST /pay` crea la transacción en `PENDIENTE`, la procesa y la finaliza en `APROBADA` o `RECHAZADA` (tarjeta terminada en 0002). | `POST /pay` | Must |
 | RF-19 | El número de factura es único por comercio; puede ser nulo. | — | Must |
 | RF-20 | Multimoneda en pagos y saldos; `POST /pay` usa EUR y no acepta moneda en el cuerpo. | — | Should |
 | RF-21 | No se almacenan PAN ni CVV; se guarda token, últimos 4 y caducidad en tarjetas. | — | Must |
-| RF-22 | La comisión existe en el modelo, pero `POST /pay` la registra a 0. | — | Should |
-| RF-23 | El pago aprobado **no incrementa** el saldo del comercio actualmente (pendiente). | — | Must |
-| RF-24 | El motivo del pago no se persiste; la API lo deriva del estado (“Pago correcto”, “Pago rechazado”…). | — | Should |
+| RF-22 | No se aplica comisión: `COMISION` queda a 0. | — | Must |
+| RF-23 | Un pago aprobado incrementa el saldo de la empresa por el importe completo. Un pago rechazado no lo modifica. | — | Must |
+| RF-24 | El motivo del estado se persiste en la transacción y en su historial; la API lo devuelve en `reason`. | — | Must |
 
 ### 4.4 Consulta de pagos
 
@@ -100,7 +99,7 @@ La implementación actual es una **API REST/JSON** sobre Django + Django REST Fr
 | RF-29 | Solo devoluciones totales: el importe coincide con el del pago. | — | Must |
 | RF-30 | Al aceptar se descuenta el importe del saldo de esa moneda y, si es total, la transacción pasa a `REEMBOLSADA`. | — | Must |
 | RF-31 | Listado de devoluciones de la empresa con cliente, referencia, importe, moneda, motivo, estado y fecha. | `GET /refunds` | Should |
-| RF-32 | Actualmente no se valida que el pago esté aprobado antes de solicitar la devolución (pendiente). | — | Should |
+| RF-32 | Solo se puede solicitar devolución si el pago está en estado `APROBADA`; si no, 400 `PAYMENT_NOT_REFUNDABLE`. | — | Must |
 
 ### 4.6 Tickets de soporte
 
@@ -147,7 +146,7 @@ La implementación actual es una **API REST/JSON** sobre Django + Django REST Fr
 | RNF-02 | Seguridad / PCI | No se almacenan PAN ni CVV; solo token, últimos 4 y caducidad. |
 | RNF-03 | Integridad | Retiradas y devoluciones son atómicas y bloquean el saldo; no se permiten saldos negativos. |
 | RNF-04 | Concurrencia | `select_for_update` en saldo para retiradas y devoluciones. |
-| RNF-05 | Auditoría | Tickets: historial de estados, mensajes y asignaciones. Pagos: no hay historial de estados ni motivo persistido. |
+| RNF-05 | Auditoría | Tickets y pagos: historial de estados con fecha y motivo. Las asignaciones de tickets también se registran. |
 | RNF-06 | Rendimiento | Respuestas por debajo de 500 ms en el entorno de práctica. |
 | RNF-07 | Disponibilidad | Persistencia en MySQL; migraciones y seed al arrancar el contenedor. |
 | RNF-08 | Mantenibilidad | Contrato en `api/api.yaml`, DDL en `pasarela_pagos.sql` y app `pagos` separada de las vistas. |
@@ -162,7 +161,8 @@ La implementación actual es una **API REST/JSON** sobre Django + Django REST Fr
 |---|---|---|
 | `EMPRESAS` | Comercio | Estado (`activo`/`dado-de-baja`) y datos fiscales/contacto. |
 | `PERFILES_USUARIO` | Usuario | Rol y empresa; se apoya en `auth_user`. |
-| `TRANSACCIONES` | Pago | `REFERENCIA`, `NUM_FACTURA`, moneda, comisión y 4 estados. |
+| `TRANSACCIONES` | Pago | `REFERENCIA`, `NUM_FACTURA`, `MOTIVO`, moneda, comisión (sin aplicar) y 4 estados. |
+| `TRANSACCION_HISTORIAL` | Historial de pago | Estado, motivo y fecha de cada cambio. |
 | `INFORMACION_PAGOS` + `TARJETAS` / `CUENTAS_BANCARIAS` | Datos de pago | Tokenizados. |
 | `REEMBOLSOS` | Devolución | Estado (`PENDIENTE/ACEPTADO/RECHAZADO`), motivo y cantidad. |
 | `METODOS_PAGO` | Catálogo | Tarjeta, Transferencia, Bizum y Efectivo. |
@@ -186,14 +186,14 @@ La implementación actual es una **API REST/JSON** sobre Django + Django REST Fr
 
 ### 7.2 Pagos y saldo
 
-- **US-08 · Pagar**: usuario con empresa; 200 crea transacción aprobada; 400 cuerpo inválido; sin PAN/CVV.
+- **US-08 · Pagar**: usuario con empresa; el pago pasa por `PENDIENTE` y termina en `APROBADA` (200) o `RECHAZADA` (422, tarjeta terminada en 0002). Al aprobarse se abona el importe completo al saldo; al rechazarse no se abona. 400 cuerpo inválido; sin PAN/CVV.
 - **US-09 · Consultar pagos**: solo los de la empresa; cliente, referencia, factura, concepto, importe, moneda, estado, método y fecha.
 - **US-10 · Consultar saldo**: array de cuentas por moneda; 403 sin empresa.
 - **US-11 · Retirar**: por moneda; 200 y descuento atómico; 400 importe/saldo.
 
 ### 7.3 Devoluciones
 
-- **US-12 · Solicitar**: transacción propia y motivo opcional; 202; 404; 409 duplicada.
+- **US-12 · Solicitar**: transacción propia y **aprobada** + motivo opcional; 202; 400 si no está aprobada; 404; 409 duplicada.
 - **US-13 · Aceptar/rechazar**: por UUID de devolución; 200; 400 ya resuelta/saldo; 404.
 - **US-14 · Total**: importe igual al pago; aceptar descuenta saldo y marca `REEMBOLSADA` si es total.
 - **US-15 · Listar**: devoluciones de la empresa con cliente, referencia, importe, moneda, motivo, estado y fecha.
@@ -231,10 +231,8 @@ La implementación actual es una **API REST/JSON** sobre Django + Django REST Fr
 
 ## 9. Brechas conocidas (estado actual)
 
-1. `POST /pay` no incrementa el saldo del comercio ni calcula comisión; crea la transacción ya aprobada.
-2. No existe historial de estados de pago ni columna de motivo; la API deriva el motivo del estado.
-3. `POST /refunds/request` no comprueba que el pago esté aprobado.
-4. Los tokens no caducan.
-5. No hay endpoint para desactivar técnicos.
-6. El abono al cliente es simulado: aceptar una devolución solo ajusta el saldo del comercio.
-7. La interoperabilidad con otros proyectos no está implementada.
+1. Los tokens no caducan.
+2. No hay endpoint para desactivar técnicos.
+3. El abono al cliente es simulado: aceptar una devolución solo ajusta el saldo del comercio.
+4. La interoperabilidad con otros proyectos no está implementada.
+5. No hay pasarela real de pagos: la aprobación/rechazo se simula.

@@ -71,9 +71,12 @@ Los roles se guardan en `pagos.PerfilUsuario`. Las rutas de administrador (`/com
 - **Saldos**: una fila por empresa y moneda (`EUR`, `USD`, `GBP`). `POST /withdraw` descuenta de la
   moneda indicada.
 - **Pagos**: `Transaccion` + `InformacionPago` + `Tarjeta`/`CuentaBancaria`, con `referencia`,
-  `num_factura`, moneda, comisión y estado (`PENDIENTE`, `APROBADA`, `RECHAZADA`, `REEMBOLSADA`).
-- **Devoluciones**: `Reembolso` sobre una transacción, con `motivo` y estado. Aceptar descuenta el
-  importe del saldo de la empresa; rechazar solo cambia el estado.
+  `num_factura`, `motivo`, moneda, comisión (sin aplicar) y estado (`PENDIENTE`, `APROBADA`,
+  `RECHAZADA`, `REEMBOLSADA`). Cada cambio de estado se guarda en `TransaccionHistorial` con su
+  motivo. `POST /pay` abona el importe completo al saldo si el pago se aprueba.
+- **Devoluciones**: `Reembolso` sobre una transacción, con `motivo` y estado. Solo se solicitan
+  sobre pagos aprobados. Aceptar descuenta el importe del saldo de la empresa; rechazar solo cambia
+  el estado.
 - **Tickets**: `Ticket` + `TicketMensaje` + `TicketHistorial`. El comercio solo accede a los tickets
   de su empresa; el equipo técnico ve todos. Cada ticket tiene un `tecnico` asignado (opcional);
   el administrador puede asignar a cualquier técnico, el técnico puede asignarse el ticket y
@@ -97,7 +100,9 @@ Los roles se guardan en `pagos.PerfilUsuario`. Las rutas de administrador (`/com
 | `/login` | 401 | Credenciales incorrectas |
 | `/balance`, `/payments`, `/refunds` | 403 | Usuario sin empresa (admin/técnico) |
 | `/withdraw` | 400 | Importe no válido, moneda sin saldo o saldo insuficiente |
+| `/pay` | 422 | Pago rechazado (tarjeta terminada en `0002`) |
 | `/refunds/request` | 404 | Transacción inexistente o de otra empresa |
+| `/refunds/request` | 400 | El pago no está aprobado (`PAYMENT_NOT_REFUNDABLE`) |
 | `/refunds/request` | 409 | Ya hay una devolución pendiente |
 | `/refunds/accept` | 400 | Saldo insuficiente o devolución ya resuelta |
 | `/refunds/accept`, `/refunds/reject` | 404 | Devolución inexistente o de otra empresa |
