@@ -26,6 +26,8 @@ export const COMPANY_STATUS_LABELS: Record<CompanyStatus, string> = {
 export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
   aceptado: 'Aceptado',
   rechazado: 'Rechazado',
+  pendiente: 'Pendiente',
+  reembolsado: 'Reembolsado',
 }
 
 export const REFUND_STATUS_LABELS: Record<RefundStatus, string> = {

@@ -41,7 +41,7 @@ const config = computed<{ label: string; tone: Tone }>(() => {
         ? 'success'
         : status === 'rechazado'
           ? 'danger'
-          : status === 'en-proceso'
+          : status === 'pendiente'
             ? 'warning'
             : 'neutral'
     return { label: PAYMENT_STATUS_LABELS[status], tone }

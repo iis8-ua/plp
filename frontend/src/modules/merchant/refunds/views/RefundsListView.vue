@@ -56,7 +56,7 @@ async function confirmAccept(): Promise<void> {
   try {
     const amount = selected.value.amount
     const currency = selected.value.currency
-    await store.accept(selected.value.transactionId)
+    await store.accept(selected.value.id)
     await balances.load(true)
     confirmOpen.value = false
     selected.value = null
@@ -69,7 +69,7 @@ async function confirmAccept(): Promise<void> {
 async function confirmReject(): Promise<void> {
   if (!selected.value) return
   try {
-    await store.reject(selected.value.transactionId)
+    await store.reject(selected.value.id)
     confirmOpen.value = false
     selected.value = null
     ui.pushToast('success', 'Devolución rechazada')

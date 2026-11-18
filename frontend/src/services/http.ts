@@ -11,7 +11,6 @@ interface RequestOptions {
   query?: Record<string, string | number | undefined>
   body?: unknown
   auth?: boolean
-  admin?: boolean
 }
 
 interface StoredSession {
@@ -43,7 +42,7 @@ function handleUnauthorized(): void {
 }
 
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { method = 'GET', query, body, auth = true, admin = false } = options
+  const { method = 'GET', query, body, auth = true } = options
 
   const url = new URL(`${API_BASE}${path}`, window.location.origin)
 
@@ -58,7 +57,6 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
     const token = readToken()
     if (token) headers.Authorization = `Bearer ${token}`
   }
-  if (admin) headers['X-Admin-Token'] = 'plp-admin'
 
   const controller = new AbortController()
   const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)

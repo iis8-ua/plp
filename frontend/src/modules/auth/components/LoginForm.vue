@@ -45,6 +45,10 @@ async function submit(): Promise<void> {
 
   try {
     await auth.login(form.username, form.password, props.portal)
+    if (auth.user?.forcePasswordChange) {
+      await router.push(auth.role === 'comercio' ? '/comercio/perfil' : '/tecnico/perfil')
+      return
+    }
     await router.push(auth.homeRoute)
   } catch (cause) {
     formError.value = cause instanceof Error ? cause.message : 'No se pudo iniciar sesión.'

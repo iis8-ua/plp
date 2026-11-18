@@ -1,4 +1,4 @@
-import type { Company } from '@/types'
+import type { Company, CompanyForm } from '@/types'
 import { request } from '@/services/http'
 import { initials, normalizeApiDate } from '@/shared/utils/format'
 
@@ -21,15 +21,14 @@ function mapApiCompany(company: ApiCompany): Company {
 }
 
 export async function fetchCompanies(): Promise<Company[]> {
-  const response = await request<ApiCompany[]>('/companies', { admin: true })
+  const response = await request<ApiCompany[]>('/companies')
   return response.map(mapApiCompany)
 }
 
-export async function createCompany(name: string): Promise<Company> {
+export async function createCompany(payload: CompanyForm): Promise<Company> {
   const response = await request<ApiCompany>('/companies/add', {
     method: 'PUT',
-    query: { nombre: name.trim() },
-    admin: true,
+    body: payload,
   })
   return mapApiCompany(response)
 }
@@ -39,7 +38,6 @@ export async function deleteCompany(companyId: string): Promise<Company> {
   const response = await request<ApiCompany>('/companies/delete', {
     method: 'DELETE',
     query: { id: companyId },
-    admin: true,
   })
   return mapApiCompany(response)
 }
@@ -48,7 +46,6 @@ export async function reactivateCompany(companyId: string): Promise<Company> {
   const response = await request<ApiCompany>('/companies/reactivate', {
     method: 'PUT',
     query: { id: companyId },
-    admin: true,
   })
   return mapApiCompany(response)
 }

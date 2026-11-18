@@ -64,7 +64,6 @@ export async function requestRefund(payment: Payment, reason = ''): Promise<Refu
   const response = await request<RefundRequestResponse>('/refunds/request', {
     method: 'POST',
     query: { transaction_id: payment.transactionId, reason: reason.trim() || undefined },
-    auth: false,
   })
 
   return {
@@ -81,18 +80,18 @@ export async function requestRefund(payment: Payment, reason = ''): Promise<Refu
   }
 }
 
-export async function acceptRefund(transactionId: string): Promise<RefundActionResult> {
+export async function acceptRefund(refundId: string): Promise<RefundActionResult> {
   const response = await request<RefundActionResponse>('/refunds/accept', {
     method: 'POST',
-    query: { transaction_id: transactionId },
+    query: { id: refundId },
   })
   return { refund: mapApiRefund(response.refund), balance: response.balance }
 }
 
-export async function rejectRefund(transactionId: string): Promise<RefundActionResult> {
+export async function rejectRefund(refundId: string): Promise<RefundActionResult> {
   const response = await request<RefundActionResponse>('/refunds/reject', {
     method: 'POST',
-    query: { transaction_id: transactionId },
+    query: { id: refundId },
   })
   return { refund: mapApiRefund(response.refund), balance: response.balance }
 }

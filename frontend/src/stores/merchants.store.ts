@@ -2,7 +2,6 @@ import { computed, reactive, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import type { Company, CompanyFilters } from '@/types'
 import {
-  createCompany,
   deleteCompany,
   fetchCompanies,
   reactivateCompany,
@@ -81,18 +80,6 @@ export const useMerchantsStore = defineStore('merchants', () => {
     }
   }
 
-  async function addCompany(name: string): Promise<Company> {
-    saving.value = true
-    error.value = ''
-    try {
-      const company = await createCompany(name)
-      companies.value = [company, ...companies.value]
-      return company
-    } finally {
-      saving.value = false
-    }
-  }
-
   async function deactivateCompany(company: Company): Promise<void> {
     saving.value = true
     error.value = ''
@@ -139,7 +126,6 @@ export const useMerchantsStore = defineStore('merchants', () => {
     rangeStart,
     rangeEnd,
     load,
-    addCompany,
     deactivateCompany,
     reactivate,
     clearFilters,

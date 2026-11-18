@@ -12,6 +12,8 @@ const statusOptions = [
   { value: 'todos', label: 'Todos los estados' },
   { value: 'aceptado', label: 'Aceptado' },
   { value: 'rechazado', label: 'Rechazado' },
+  { value: 'pendiente', label: 'Pendiente' },
+  { value: 'reembolsado', label: 'Reembolsado' },
 ]
 
 const currencyOptions = [{ value: 'todas', label: 'Todas las monedas' }, ...CURRENCY_OPTIONS]

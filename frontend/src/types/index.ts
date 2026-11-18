@@ -8,6 +8,7 @@ export interface AuthUser {
   subtitle: string
   companyId?: string
   companyName?: string
+  forcePasswordChange?: boolean
 }
 
 export interface Session {
@@ -47,6 +48,63 @@ export interface Ticket {
   reply: string
   history: TicketHistoryEntry[]
   messages: TicketMessage[]
+  assignee: { id: string; name: string } | null
+}
+
+export interface TechnicianActivity {
+  assigned: number
+  open: number
+  in_progress: number
+  closed: number
+}
+
+export interface Technician {
+  id: string
+  name: string
+  email: string
+  username: string
+  role: 'tecnico'
+  status: 'Activo' | 'Inactivo'
+  activity: TechnicianActivity
+  password?: string
+}
+
+export interface TechnicianCreatePayload {
+  name: string
+  email: string
+  username: string
+  password: string
+  force_change: boolean
+}
+
+export interface CompanyProfile {
+  id: string
+  nombre: string
+  status: CompanyStatus
+  registeredAt: string
+  razonSocial: string
+  cif: string
+  tipoEmpresa: string
+  actividadEconomica: string
+  direccion: string
+  codigoPostal: string
+  ciudad: string
+  provincia: string
+  pais: string
+  telefono: string
+  email: string
+  web: string
+}
+
+export interface UserProfile {
+  id: string
+  name: string
+  email: string
+  username: string
+  role: UserRole
+  status: 'Activo' | 'Inactivo'
+  company: CompanyProfile | null
+  activity: TechnicianActivity | null
 }
 
 export type CompanyStatus = 'activo' | 'dado-de-baja'
@@ -59,7 +117,7 @@ export interface Company {
   status: CompanyStatus
 }
 
-export type PaymentStatus = 'aceptado' | 'rechazado'
+export type PaymentStatus = 'aceptado' | 'rechazado' | 'pendiente' | 'reembolsado'
 export type Currency = 'EUR' | 'USD' | 'GBP'
 
 export interface PaymentHistoryEntry {
@@ -119,6 +177,23 @@ export interface TicketFilters {
   company: string
   date: 'cualquiera' | 'hoy' | '7d' | '30d'
   sort: 'abiertos-antiguos' | 'recientes' | 'antiguos'
+  assignee: 'todos' | 'mios' | 'sin-asignar'
+}
+
+export interface CompanyForm {
+  nombre: string
+  razon_social: string
+  cif: string
+  tipo_empresa: string
+  actividad_economica: string
+  direccion: string
+  codigo_postal: string
+  ciudad: string
+  provincia: string
+  pais: string
+  telefono: string
+  email: string
+  web: string
 }
 
 export interface CompanyFilters {

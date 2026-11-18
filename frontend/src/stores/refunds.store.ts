@@ -112,11 +112,11 @@ export const useRefundsStore = defineStore('refunds', () => {
     }
   }
 
-  async function accept(transactionId: string): Promise<number> {
+  async function accept(refundId: string): Promise<number> {
     saving.value = true
     error.value = ''
     try {
-      const result = await acceptRefund(transactionId)
+      const result = await acceptRefund(refundId)
       replace(result.refund)
       return result.balance
     } finally {
@@ -124,11 +124,11 @@ export const useRefundsStore = defineStore('refunds', () => {
     }
   }
 
-  async function reject(transactionId: string): Promise<void> {
+  async function reject(refundId: string): Promise<void> {
     saving.value = true
     error.value = ''
     try {
-      const result = await rejectRefund(transactionId)
+      const result = await rejectRefund(refundId)
       replace(result.refund)
     } finally {
       saving.value = false

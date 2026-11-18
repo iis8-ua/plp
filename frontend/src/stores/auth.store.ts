@@ -38,6 +38,14 @@ export const useAuthStore = defineStore('auth', () => {
     else localStorage.removeItem(STORAGE_KEY)
   }
 
+  function updateUser(patch: Partial<Session['user']>): void {
+    if (!session.value) return
+    persist({
+      ...session.value,
+      user: { ...session.value.user, ...patch },
+    })
+  }
+
   async function login(username: string, password: string, portal: Portal): Promise<void> {
     loading.value = true
     error.value = ''
@@ -81,5 +89,6 @@ export const useAuthStore = defineStore('auth', () => {
     login,
     logout,
     clearError,
+    updateUser,
   }
 })

@@ -38,6 +38,7 @@ const empty = computed(() => !store.loading && store.sorted.length === 0)
 
 const reasonClass = (status: string): string => {
   if (status === 'rechazado') return 'text-danger'
+  if (status === 'pendiente') return 'text-warning-text'
   return 'text-muted'
 }
 

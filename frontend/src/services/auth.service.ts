@@ -6,7 +6,7 @@ interface LoginResponse {
   token: string
   token_type: string
   expires_in?: number
-  user: AuthUser
+  user: AuthUser & { force_password_change?: boolean }
 }
 
 export async function login(username: string, password: string, portal: Portal): Promise<Session> {
@@ -34,7 +34,12 @@ export async function login(username: string, password: string, portal: Portal):
     )
   }
 
-  return { token: response.token, user: response.user }
+  const user: AuthUser = {
+    ...response.user,
+    forcePasswordChange: response.user.force_password_change ?? false,
+  }
+
+  return { token: response.token, user }
 }
 
 export async function logout(): Promise<void> {

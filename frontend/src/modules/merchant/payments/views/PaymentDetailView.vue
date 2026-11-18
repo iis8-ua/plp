@@ -29,6 +29,8 @@ const existingRefund = computed(() => (payment.value ? refunds.forPayment(paymen
 const title = computed(() => {
   if (!payment.value) return ''
   if (payment.value.status === 'aceptado') return 'Pago correcto'
+  if (payment.value.status === 'reembolsado') return 'Devolución completada'
+  if (payment.value.status === 'pendiente') return 'Pendiente de confirmación'
   return payment.value.reason
 })
 
@@ -39,6 +41,8 @@ const canRequest = computed(
 const refundHelper = computed(() => {
   if (existingRefund.value?.status === 'pendiente') return 'Tu solicitud de devolución está pendiente de revisión.'
   if (payment.value?.status === 'rechazado') return 'Solo se pueden devolver pagos aceptados'
+  if (payment.value?.status === 'pendiente') return 'El pago está pendiente de confirmación'
+  if (payment.value?.status === 'reembolsado') return 'Este pago ya se ha reembolsado por completo'
   return ''
 })
 
@@ -92,6 +96,13 @@ onMounted(async () => {
         <section class="rounded-lg border border-line bg-white p-6">
           <StatusBadge kind="payment" :status="payment.status" size="md" />
           <h2 class="mt-3 text-[20px] font-semibold leading-[1.5] text-ink">{{ title }}</h2>
+          <p
+            v-if="payment.status === 'reembolsado'"
+            class="mt-1 text-[12px] leading-[1.5] text-muted"
+          >
+            Devolución total de {{ formatCurrency(payment.amount, payment.currency) }}. El abono
+            original está revertido.
+          </p>
 
           <div class="mt-6 grid grid-cols-1 gap-x-8 gap-y-5 sm:grid-cols-2">
             <div>
@@ -110,7 +121,7 @@ onMounted(async () => {
             </div>
             <div>
               <p class="plp-micro">N.º DE FACTURA DEL COMERCIO</p>
-              <p class="mt-1 text-[14px] font-medium text-ink">{{ payment.invoice }}</p>
+              <p class="mt-1 text-[14px] font-medium text-ink">{{ payment.invoice || '—' }}</p>
             </div>
           </div>
 
@@ -127,7 +138,7 @@ onMounted(async () => {
             <h2 class="text-[18px] font-semibold leading-[1.5] text-ink">Acciones</h2>
 
             <AppButton
-              v-if="payment.status !== 'rechazado'"
+              v-if="payment.status === 'aceptado'"
               block
               class="mt-5"
               :disabled="!canRequest"
@@ -139,7 +150,10 @@ onMounted(async () => {
             <p v-if="refundHelper" class="mt-3 text-[12px] leading-[1.5] text-muted">
               {{ refundHelper }}
             </p>
-            <p class="mt-3 text-[12px] leading-[1.5] text-muted">
+            <p
+              v-if="payment.status === 'aceptado'"
+              class="mt-3 text-[12px] leading-[1.5] text-muted"
+            >
               La devolución siempre es por el importe total
             </p>
           </section>

@@ -15,6 +15,7 @@ interface ApiPayment {
   invoice?: string
   payment_method?: string
   status: string
+  concept?: string
   products?: ApiProduct[]
   created_at?: string
 }
@@ -24,10 +25,28 @@ function toCurrency(value?: string): Currency {
 }
 
 function mapStatus(status: string): PaymentStatus {
-  return status === 'approved' ? 'aceptado' : 'rechazado'
+  if (status === 'approved') return 'aceptado'
+  if (status === 'pending') return 'pendiente'
+  if (status === 'refunded') return 'reembolsado'
+  return 'rechazado'
+}
+
+const STATUS_REASONS: Record<PaymentStatus, string> = {
+  aceptado: 'Pago correcto',
+  rechazado: 'Pago rechazado',
+  pendiente: 'Pendiente de confirmación',
+  reembolsado: 'Devolución completada',
+}
+
+const STATUS_TITLES: Record<PaymentStatus, string> = {
+  aceptado: 'Aceptado · Pago correcto',
+  rechazado: 'Rechazado',
+  pendiente: 'Pendiente de confirmación',
+  reembolsado: 'Reembolsado',
 }
 
 function conceptFor(payment: ApiPayment): string {
+  if (payment.concept?.trim()) return payment.concept.trim()
   const products = (payment.products ?? [])
     .map((product) => product.name)
     .filter((name): name is string => Boolean(name))
@@ -47,9 +66,9 @@ function historyFor(payment: ApiPayment, status: PaymentStatus, concept: string,
     {
       id: `${payment.transaction_id}-h2`,
       at,
-      title: status === 'aceptado' ? 'Aceptado · Pago correcto' : 'Rechazado',
+      title: STATUS_TITLES[status],
       description: reason,
-      tone: status === 'aceptado' ? 'accent' : 'danger',
+      tone: status === 'aceptado' ? 'accent' : status === 'rechazado' ? 'danger' : 'brand',
     },
   ]
 }
@@ -57,14 +76,14 @@ function historyFor(payment: ApiPayment, status: PaymentStatus, concept: string,
 function mapApiPayment(payment: ApiPayment): Payment {
   const status = mapStatus(payment.status)
   const concept = conceptFor(payment)
-  const reason = status === 'aceptado' ? 'Pago correcto' : 'Pago rechazado'
+  const reason = STATUS_REASONS[status]
 
   return {
     id: payment.transaction_id,
     transactionId: payment.transaction_id,
     client: payment.client ?? '—',
     reference: payment.reference ?? payment.transaction_id,
-    invoice: payment.invoice ?? payment.transaction_id,
+    invoice: payment.invoice ?? '',
     method: payment.payment_method ?? 'card',
     concept,
     amount: payment.amount,
