@@ -19,7 +19,7 @@ npm install
 npm run dev
 ```
 
-Credenciales del backend mock:
+Credenciales del backend:
 
 | Portal | Usuario | Contraseña | Rol |
 | --- | --- | --- | --- |
