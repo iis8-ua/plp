@@ -23,5 +23,9 @@ urlpatterns = [
     path('ticket/delete', views.ticket_delete, name='ticket-delete'),
     path('ticket/update', views.ticket_update, name='ticket-update'),
     path('ticket/message', views.ticket_message, name='ticket-message'),
+    path('ticket/assign', views.ticket_assign, name='ticket-assign'),
     path('tickets', views.tickets, name='tickets'),
+    path('technicians', views.technicians, name='technicians'),
+    path('profile', views.profile, name='profile'),
+    path('profile/password', views.profile_password, name='profile-password'),
 ]

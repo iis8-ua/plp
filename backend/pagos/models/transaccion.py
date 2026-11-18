@@ -52,6 +52,10 @@ class Transaccion(models.Model):
         'número de factura', max_length=30, null=True, blank=True,
         db_column='NUM_FACTURA',
     )
+    referencia = models.CharField(
+        'referencia', max_length=20, null=True, blank=True, db_column='REFERENCIA',
+        help_text='Identificador corto del pago (por ejemplo, P-1048).',
+    )
 
     class Meta:
         db_table = 'TRANSACCIONES'
