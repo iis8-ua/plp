@@ -116,7 +116,8 @@ src/
 ### Límites del contrato
 
 - Los importes y saldos llegan como números (`COERCE_DECIMAL_TO_STRING=False` en DRF).
-- `GET /payments` devuelve `concept`, `client`, `reference`, `invoice` (puede ser vacío), moneda y estado; no incluye tarjeta, comisión ni neto.
+- `GET /payments` devuelve `concept`, `client`, `reference`, `invoice` (puede ser vacío), moneda, estado, **motivo** e **historial**; no incluye tarjeta, comisión ni neto en la lista.
+- `GET /payments` incluye `reason` persistido y `history` con los cambios de estado.
 - No existe `GET /payments/{id}`: el detalle se resuelve con la lista de pagos; un acceso directo recarga la lista antes de buscar.
 - Los estados de pago son `pending`, `approved`, `rejected` y `refunded`.
 - Aceptar una devolución descuenta el importe del saldo de esa moneda y, si es total, marca el pago como `refunded`.

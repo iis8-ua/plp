@@ -24,6 +24,7 @@ from .informacion_pago import InformacionPago
 from .tarjeta import Tarjeta
 from .cuenta_bancaria import CuentaBancaria
 from .transaccion import Transaccion
+from .transaccion_historial import TransaccionHistorial
 from .reembolso import Reembolso
 from .saldo_empresa import SaldoEmpresa
 from .ticket import Ticket, TicketHistorial, TicketMensaje
@@ -42,4 +43,5 @@ __all__ = [
     'TicketHistorial',
     'TicketMensaje',
     'Transaccion',
+    'TransaccionHistorial',
 ]

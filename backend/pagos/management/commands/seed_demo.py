@@ -25,6 +25,7 @@ from pagos.models import (
     TicketHistorial,
     TicketMensaje,
     Transaccion,
+    TransaccionHistorial,
 )
 
 User = get_user_model()
@@ -166,38 +167,50 @@ class Command(BaseCommand):
 
     def crear_pagos(self, empresa, metodos):
         for referencia, _slug, client, invoice, amount, currency, method, estado, fecha in self.PAGOS:
-            if Transaccion.objects.filter(referencia=referencia).exists():
-                continue
-
-            info = InformacionPago.objects.create(
-                metodo=metodos[method], titular=client
-            )
-            if method == 'Tarjeta':
-                Tarjeta.objects.create(
-                    informacion=info,
-                    marca='VISA',
-                    ultimos4='1111',
-                    caducidad='12/30',
-                    token=f'tok_{referencia.lower().replace("-", "_")}',
+            tx = Transaccion.objects.filter(referencia=referencia).first()
+            if tx is None:
+                info = InformacionPago.objects.create(
+                    metodo=metodos[method], titular=client
                 )
-            elif method == 'Transferencia':
-                CuentaBancaria.objects.create(
-                    informacion=info,
-                    iban='ES9121000418450200051332',
-                )
+                if method == 'Tarjeta':
+                    Tarjeta.objects.create(
+                        informacion=info,
+                        marca='VISA',
+                        ultimos4='1111',
+                        caducidad='12/30',
+                        token=f'tok_{referencia.lower().replace("-", "_")}',
+                    )
+                elif method == 'Transferencia':
+                    CuentaBancaria.objects.create(
+                        informacion=info,
+                        iban='ES9121000418450200051332',
+                    )
 
-            tx = Transaccion.objects.create(
-                receptor=empresa,
-                informacion=info,
-                concepto=f'Compra {invoice}',
-                cantidad=Decimal(amount),
-                comision=Decimal('0.00'),
-                moneda_id=currency,
-                estado=getattr(Transaccion.Estado, estado),
-                num_factura=invoice,
-                referencia=referencia,
-            )
-            Transaccion.objects.filter(pk=tx.pk).update(fecha=aware(fecha))
+                tx = Transaccion.objects.create(
+                    receptor=empresa,
+                    informacion=info,
+                    concepto=f'Compra {invoice}',
+                    cantidad=Decimal(amount),
+                    comision=Decimal('0.00'),
+                    moneda_id=currency,
+                    estado=getattr(Transaccion.Estado, estado),
+                    num_factura=invoice,
+                    referencia=referencia,
+                )
+                Transaccion.objects.filter(pk=tx.pk).update(fecha=aware(fecha))
+
+            motivo = 'Pago correcto' if tx.estado == Transaccion.Estado.APROBADA else 'Pago rechazado'
+            if not tx.motivo:
+                tx.motivo = motivo
+                tx.save(update_fields=['motivo'])
+
+            if not tx.historial.exists():
+                evento = TransaccionHistorial.objects.create(
+                    transaccion=tx,
+                    estado=tx.estado,
+                    motivo=motivo,
+                )
+                TransaccionHistorial.objects.filter(pk=evento.pk).update(fecha=aware(fecha))
 
     # -------------------------------------------------------------- Devoluciones
 

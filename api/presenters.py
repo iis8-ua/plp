@@ -1,4 +1,3 @@
-"""Traducción de modelos a los payloads de ``api/api.yaml``."""
 
 PAYMENT_STATUS = {
     'PENDIENTE': 'pending',
@@ -24,6 +23,13 @@ PAYMENT_METHODS = {
     'Transferencia': 'transfer',
     'Bizum': 'bizum',
     'Efectivo': 'cash',
+}
+
+PAYMENT_REASONS = {
+    'PENDIENTE': 'Pago pendiente de confirmación',
+    'APROBADA': 'Pago correcto',
+    'RECHAZADA': 'Pago rechazado',
+    'REEMBOLSADA': 'Devolución completada',
 }
 
 ROLE_SUBTITLES = {
@@ -64,6 +70,16 @@ def user_payload(user):
 
 def payment_payload(tx):
     info = tx.informacion
+    status = PAYMENT_STATUS.get(tx.estado, tx.estado.lower())
+    history = [
+        {
+            'id': str(event.pk),
+            'status': PAYMENT_STATUS.get(event.estado, event.estado.lower()),
+            'reason': event.motivo,
+            'created_at': iso(event.fecha),
+        }
+        for event in tx.historial.all()
+    ]
     return {
         'transaction_id': str(tx.id),
         'reference': tx.referencia or '',
@@ -73,7 +89,9 @@ def payment_payload(tx):
         'amount': float(tx.cantidad),
         'currency': tx.moneda_id,
         'payment_method': PAYMENT_METHODS.get(info.metodo.nombre, info.metodo.nombre.lower()),
-        'status': PAYMENT_STATUS.get(tx.estado, tx.estado.lower()),
+        'status': status,
+        'reason': tx.motivo or PAYMENT_REASONS.get(tx.estado, ''),
+        'history': history,
         'created_at': iso(tx.fecha),
     }
 

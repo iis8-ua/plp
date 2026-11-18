@@ -27,6 +27,7 @@ from pagos.models import (
     TicketHistorial,
     TicketMensaje,
     Transaccion,
+    TransaccionHistorial,
 )
 
 from . import presenters
@@ -220,11 +221,12 @@ def pay(request):
     )
     payment_data = data.get('payment_data', {})
     holder = payment_data.get('holder') or 'Cliente'
+    card_number = payment_data.get('card_number') or ''
 
     with transaction.atomic():
         info = InformacionPago.objects.create(metodo=metodo, titular=holder)
         if method_name == 'Tarjeta':
-            digits = (payment_data.get('card_number') or '')[-4:] or '0000'
+            digits = card_number[-4:] or '0000'
             Tarjeta.objects.create(
                 informacion=info,
                 marca='VISA',
@@ -242,14 +244,55 @@ def pay(request):
         while Transaccion.objects.filter(referencia=reference).exists():
             reference = f'P-{int(reference.split("-")[1]) + 1}'
 
+        currency = 'EUR'
         tx = Transaccion.objects.create(
             receptor=company,
             informacion=info,
             concepto=', '.join(product['name'] for product in data['products']),
             cantidad=Decimal(str(data['total_amount'])),
-            moneda=Moneda.objects.get(codigo='EUR'),
-            estado=Transaccion.Estado.APROBADA,
+            moneda_id=currency,
+            estado=Transaccion.Estado.PENDIENTE,
+            motivo='Pago iniciado',
             referencia=reference,
+        )
+        TransaccionHistorial.objects.create(
+            transaccion=tx,
+            estado=Transaccion.Estado.PENDIENTE,
+            motivo='Pago iniciado',
+        )
+
+        rejected = card_number.endswith('0002')
+        if rejected:
+            tx.estado = Transaccion.Estado.RECHAZADA
+            tx.motivo = 'Tarjeta no aceptada'
+            tx.save(update_fields=['estado', 'motivo'])
+            TransaccionHistorial.objects.create(
+                transaccion=tx,
+                estado=Transaccion.Estado.RECHAZADA,
+                motivo='Tarjeta no aceptada',
+            )
+        else:
+            net = tx.cantidad
+
+            saldo, _ = SaldoEmpresa.objects.get_or_create(
+                empresa=company, moneda_id=currency, defaults={'saldo': Decimal('0')}
+            )
+            saldo = SaldoEmpresa.objects.select_for_update().get(pk=saldo.pk)
+            saldo.saldo = saldo.saldo + net
+            saldo.save(update_fields=['saldo'])
+
+            tx.estado = Transaccion.Estado.APROBADA
+            tx.motivo = 'Pago correcto'
+            tx.save(update_fields=['estado', 'motivo'])
+            TransaccionHistorial.objects.create(
+                transaccion=tx,
+                estado=Transaccion.Estado.APROBADA,
+                motivo='Pago correcto',
+            )
+
+    if rejected:
+        return error_response(
+            'PAYMENT_REJECTED', 'El pago ha sido rechazado.', status.HTTP_422_UNPROCESSABLE_ENTITY
         )
 
     return Response(
@@ -257,6 +300,7 @@ def pay(request):
             'transaction_id': str(tx.id),
             'status': 'approved',
             'authorized_amount': float(tx.cantidad),
+            'balance': float(saldo.saldo),
         },
         status=status.HTTP_200_OK,
     )
@@ -288,6 +332,13 @@ def refund_request(request):
             'TRANSACTION_NOT_FOUND',
             'La transacción indicada no existe o su identificador no es válido.',
             status.HTTP_404_NOT_FOUND,
+        )
+
+    if transaction_obj.estado != Transaccion.Estado.APROBADA:
+        return error_response(
+            'PAYMENT_NOT_REFUNDABLE',
+            'Solo se pueden devolver pagos aprobados.',
+            status.HTTP_400_BAD_REQUEST,
         )
 
     if Reembolso.objects.filter(
@@ -364,7 +415,13 @@ def refund_accept(request):
         transaction_obj = refund.transaccion
         if refund.cantidad >= transaction_obj.cantidad:
             transaction_obj.estado = Transaccion.Estado.REEMBOLSADA
-            transaction_obj.save(update_fields=['estado'])
+            transaction_obj.motivo = 'Devolución aceptada'
+            transaction_obj.save(update_fields=['estado', 'motivo'])
+            TransaccionHistorial.objects.create(
+                transaccion=transaction_obj,
+                estado=Transaccion.Estado.REEMBOLSADA,
+                motivo='Devolución aceptada',
+            )
 
     return Response(
         {'refund': presenters.refund_payload(refund), 'balance': float(saldo.saldo)},
@@ -664,6 +721,7 @@ def payments(request):
     queryset = (
         Transaccion.objects.filter(receptor=company)
         .select_related('informacion__metodo', 'moneda')
+        .prefetch_related('historial')
         .order_by('-fecha')
     )
     return Response(

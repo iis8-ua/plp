@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useBalanceStore } from '@/stores/balance.store'
+import { usePaymentsStore } from '@/stores/payments.store'
 import { useRefundsStore } from '@/stores/refunds.store'
 import { useUiStore } from '@/stores/ui.store'
 import PageHeader from '@/shared/components/layout/PageHeader.vue'
@@ -18,6 +19,7 @@ import type { Refund } from '@/types'
 
 const store = useRefundsStore()
 const balances = useBalanceStore()
+const payments = usePaymentsStore()
 const ui = useUiStore()
 const router = useRouter()
 
@@ -57,7 +59,7 @@ async function confirmAccept(): Promise<void> {
     const amount = selected.value.amount
     const currency = selected.value.currency
     await store.accept(selected.value.id)
-    await balances.load(true)
+    await Promise.all([balances.load(true), payments.load(true)])
     confirmOpen.value = false
     selected.value = null
     ui.pushToast('success', `Devolución de ${formatCurrency(amount, currency)} aceptada`)

@@ -6,6 +6,13 @@ interface ApiProduct {
   name?: string
 }
 
+interface ApiPaymentHistory {
+  id: string
+  status: string
+  reason?: string
+  created_at?: string
+}
+
 interface ApiPayment {
   transaction_id: string
   amount: number
@@ -15,8 +22,10 @@ interface ApiPayment {
   invoice?: string
   payment_method?: string
   status: string
+  reason?: string
   concept?: string
   products?: ApiProduct[]
+  history?: ApiPaymentHistory[]
   created_at?: string
 }
 
@@ -53,7 +62,30 @@ function conceptFor(payment: ApiPayment): string {
   return products.length > 0 ? products.join(', ') : `Pago ${payment.transaction_id}`
 }
 
-function historyFor(payment: ApiPayment, status: PaymentStatus, concept: string, reason: string): PaymentHistoryEntry[] {
+function historyFor(
+  payment: ApiPayment,
+  status: PaymentStatus,
+  concept: string,
+  reason: string,
+): PaymentHistoryEntry[] {
+  if (payment.history && payment.history.length > 0) {
+    return payment.history.map((event) => {
+      const eventStatus = mapStatus(event.status)
+      return {
+        id: event.id,
+        at: normalizeApiDate(event.created_at ?? ''),
+        title: STATUS_TITLES[eventStatus],
+        description: event.reason ?? STATUS_REASONS[eventStatus],
+        tone:
+          eventStatus === 'aceptado'
+            ? 'accent'
+            : eventStatus === 'rechazado'
+              ? 'danger'
+              : 'brand',
+      }
+    })
+  }
+
   const at = normalizeApiDate(payment.created_at ?? '')
   return [
     {
@@ -76,7 +108,7 @@ function historyFor(payment: ApiPayment, status: PaymentStatus, concept: string,
 function mapApiPayment(payment: ApiPayment): Payment {
   const status = mapStatus(payment.status)
   const concept = conceptFor(payment)
-  const reason = STATUS_REASONS[status]
+  const reason = payment.reason?.trim() || STATUS_REASONS[status]
 
   return {
     id: payment.transaction_id,

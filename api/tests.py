@@ -123,6 +123,9 @@ class ApiTests(APITestCase):
         self.assertIsInstance(first['amount'], float)
         self.assertEqual(first['currency'], 'EUR')
         self.assertEqual(first['status'], 'approved')
+        self.assertEqual(first['reason'], 'Pago correcto')
+        self.assertEqual(len(first['history']), 1)
+        self.assertEqual(first['history'][0]['status'], 'approved')
 
         self.login('admin')
         self.assertEqual(self.client.get('/payments').status_code, 403)
@@ -151,7 +154,54 @@ class ApiTests(APITestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data['status'], 'approved')
+        self.assertEqual(response.data['authorized_amount'], 12.5)
+        self.assertEqual(response.data['balance'], 1262.5)
+        self.assertNotIn('commission', response.data)
         self.assertEqual(Transaccion.objects.count(), before + 1)
+
+        tx = Transaccion.objects.get(id=response.data['transaction_id'])
+        self.assertEqual(tx.estado, Transaccion.Estado.APROBADA)
+        self.assertEqual(tx.comision, Decimal('0.00'))
+        self.assertEqual(tx.motivo, 'Pago correcto')
+        self.assertEqual(
+            [event.estado for event in tx.historial.all()],
+            [Transaccion.Estado.PENDIENTE, Transaccion.Estado.APROBADA],
+        )
+
+        saldo = SaldoEmpresa.objects.get(
+            empresa__nombre='Librería Horizonte', moneda_id='EUR'
+        )
+        self.assertEqual(saldo.saldo, Decimal('1262.50'))
+
+    def test_pay_rejected_does_not_credit_balance(self):
+        self.login('comercio')
+
+        response = self.client.post(
+            '/pay',
+            {
+                'total_amount': 20,
+                'payment_method': 'card',
+                'products': [
+                    {'product_id': 'P-1', 'name': 'Libro', 'quantity': 1, 'unit_price': 20}
+                ],
+                'payment_data': {'card_number': '4000000000000002'},
+            },
+            format='json',
+        )
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.data['code'], 'PAYMENT_REJECTED')
+
+        tx = Transaccion.objects.get(referencia__startswith='P-', motivo='Tarjeta no aceptada')
+        self.assertEqual(tx.estado, Transaccion.Estado.RECHAZADA)
+        self.assertEqual(
+            [event.estado for event in tx.historial.all()],
+            [Transaccion.Estado.PENDIENTE, Transaccion.Estado.RECHAZADA],
+        )
+
+        saldo = SaldoEmpresa.objects.get(
+            empresa__nombre='Librería Horizonte', moneda_id='EUR'
+        )
+        self.assertEqual(saldo.saldo, Decimal('1250.00'))
 
     # ---------------------------------------------------------- Devoluciones
 
@@ -180,6 +230,15 @@ class ApiTests(APITestCase):
         duplicate = self.client.post(f'/refunds/request?transaction_id={tx.id}')
         self.assertEqual(duplicate.status_code, 409)
 
+    def test_refund_request_requires_approved_payment(self):
+        self.login('comercio')
+        rejected = Transaccion.objects.get(referencia='P-1027')
+        self.assertEqual(rejected.estado, Transaccion.Estado.RECHAZADA)
+
+        response = self.client.post(f'/refunds/request?transaction_id={rejected.id}')
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data['code'], 'PAYMENT_NOT_REFUNDABLE')
+
     def test_refund_accept_discounts_balance(self):
         self.login('comercio')
         refund = Reembolso.objects.get(
@@ -200,6 +259,10 @@ class ApiTests(APITestCase):
         self.assertEqual(refund.estado, Reembolso.Estado.ACEPTADO)
         self.assertEqual(
             refund.transaccion.estado, Transaccion.Estado.REEMBOLSADA
+        )
+        self.assertEqual(refund.transaccion.motivo, 'Devolución aceptada')
+        self.assertEqual(
+            refund.transaccion.historial.last().estado, Transaccion.Estado.REEMBOLSADA
         )
 
         self.assertEqual(

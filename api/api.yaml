@@ -186,6 +186,15 @@ paths:
                 message: El cuerpo de la petición no es válido.
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "422":
+          description: El pago ha sido rechazado y no se abona al saldo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: PAYMENT_REJECTED
+                message: El pago ha sido rechazado.
         "500":
           description: Ha habido un error al procesar el pago.
           content:
@@ -233,6 +242,15 @@ paths:
               example:
                 code: REFUND_ALREADY_PENDING
                 message: Ya existe una devolución pendiente para esa transacción.
+        "400":
+          description: El pago no está aprobado y no se puede devolver.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: PAYMENT_NOT_REFUNDABLE
+                message: Solo se pueden devolver pagos aprobados.
         "404":
           description: El `transaction_id` no existe o está mal formado.
           content:
@@ -1115,6 +1133,12 @@ components:
           format: double
           multipleOf: 0.01
           example: 12.5
+        balance:
+          type: number
+          format: double
+          multipleOf: 0.01
+          description: Saldo de la empresa en la moneda del pago tras el abono completo.
+          example: 1262.5
 
     RefundRequestResponse:
       type: object
@@ -1275,6 +1299,7 @@ components:
         - concept
         - payment_method
         - status
+        - reason
       properties:
         transaction_id:
           type: string
@@ -1324,6 +1349,40 @@ components:
             - rejected
             - refunded
           example: approved
+        reason:
+          type: string
+          description: Motivo del último estado del pago.
+          example: Pago correcto
+        history:
+          type: array
+          items:
+            $ref: "#/components/schemas/PaymentHistoryEntry"
+        created_at:
+          type: string
+          format: date-time
+          example: 2026-11-17T10:30:00Z
+
+    PaymentHistoryEntry:
+      type: object
+      required:
+        - id
+        - status
+        - created_at
+      properties:
+        id:
+          type: string
+          example: 4b1c2d3e-5f60-4718-9a2b-3c4d5e6f7081
+        status:
+          type: string
+          enum:
+            - pending
+            - approved
+            - rejected
+            - refunded
+          example: approved
+        reason:
+          type: string
+          example: Pago correcto
         created_at:
           type: string
           format: date-time
