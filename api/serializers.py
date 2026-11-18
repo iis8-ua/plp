@@ -73,6 +73,7 @@ class TicketUpdateRequestSerializer(serializers.Serializer):
 class TicketAssignRequestSerializer(serializers.Serializer):
     technician_id = serializers.CharField(required=False, allow_blank=True)
     assign_to_me = serializers.BooleanField(required=False, default=False)
+    unassign = serializers.BooleanField(required=False, default=False)
 
 
 class TechnicianCreateRequestSerializer(serializers.Serializer):

@@ -140,6 +140,22 @@ export const useTicketsStore = defineStore('tickets', () => {
     }
   }
 
+  async function unassign(ticketId: string): Promise<Ticket> {
+    saving.value = true
+    error.value = ''
+    try {
+      const updated = await assignTicket(ticketId, { unassign: true })
+      const index = tickets.value.findIndex((ticket) => ticket.id === ticketId)
+      if (index >= 0) tickets.value[index] = updated
+      return updated
+    } catch (cause) {
+      error.value = cause instanceof Error ? cause.message : 'No se pudo desasignar el ticket.'
+      throw cause
+    } finally {
+      saving.value = false
+    }
+  }
+
   async function removeTicket(id: string): Promise<void> {
     saving.value = true
     error.value = ''
@@ -200,6 +216,7 @@ export const useTicketsStore = defineStore('tickets', () => {
     saveTicket,
     removeTicket,
     assignTo,
+    unassign,
     clearFilters,
   }
 })

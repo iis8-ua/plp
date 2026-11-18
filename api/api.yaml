@@ -1509,6 +1509,10 @@ components:
           type: boolean
           description: Asigna el ticket al usuario autenticado.
           example: true
+        unassign:
+          type: boolean
+          description: Retira el responsable actual. El técnico solo puede desasignarse sus propios tickets.
+          example: false
 
     TechnicianActivity:
       type: object

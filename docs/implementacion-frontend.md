@@ -119,7 +119,7 @@ Documento de progreso y decisiones de la implementación realizada a partir de `
   - Pestañas “Asignados a mí / Sin asignar / Todos”.
   - Columna de responsable y acciones por rol.
 - Asignación de tickets:
-  - El técnico puede asignarse el ticket a sí mismo.
+  - El técnico puede asignarse el ticket a sí mismo y desasignarse los suyos.
   - El administrador asigna o reasigna con buscador de técnicos y número de tickets abiertos.
   - El historial registra la asignación.
 - Detalle del ticket con responsable, gestión, conversación, historial y eliminación para el equipo técnico.
@@ -381,7 +381,7 @@ Correcciones aplicadas tras la comparación:
 4. **Reactivación**: nueva acción no presente en Figma, aprobada funcionalmente.
 5. **Devoluciones**: el comercio gestiona las solicitudes y aceptar descuenta su saldo, según los mockups 76–78.
 6. **Soporte del comercio**: listado, alta y conversación con historial, según los mockups 79–81.
-7. **Asignación de tickets**: técnico y administrador tienen acciones distintas; el técnico solo puede asignarse a sí mismo.
+7. **Asignación de tickets**: técnico y administrador tienen acciones distintas; el técnico solo puede asignarse o desasignarse sus propios tickets.
 8. **Mi perfil**: el comercio edita datos de su empresa; técnicos y administradores editan sus datos personales.
 9. **Móvil/tablet**: no hay diseño de referencia; se aplicaron patrones coherentes.
 10. **Título “Administradora”**: el rol admin muestra ese subtítulo; Figma muestra “Técnica de soporte” para Laura.

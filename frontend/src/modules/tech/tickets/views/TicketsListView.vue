@@ -60,12 +60,19 @@ const timestamp = computed(() => {
 
 const empty = computed(() => !store.loading && store.sorted.length === 0)
 
-function menuItems(): Array<{ key: string; label: string; tone: 'primary' | 'danger' }> {
+function menuItems(row: Ticket): Array<{ key: string; label: string; tone: 'primary' | 'danger' }> {
   const items: Array<{ key: string; label: string; tone: 'primary' | 'danger' }> = [
     { key: 'status', label: 'Cambiar estado', tone: 'primary' },
   ]
   if (auth.role === 'admin') {
     items.push({ key: 'assign', label: 'Asignar', tone: 'primary' })
+  }
+  if (row.assignee && (auth.role === 'admin' || row.assignee.id === auth.user?.id)) {
+    items.push({
+      key: 'unassign',
+      label: auth.role === 'admin' ? 'Desasignar' : 'Desasignarme',
+      tone: 'primary',
+    })
   }
   items.push({ key: 'delete', label: 'Eliminar', tone: 'danger' })
   return items
@@ -103,6 +110,15 @@ async function confirmAssign(technicianId: string): Promise<void> {
     ui.pushToast('success', 'Ticket asignado correctamente')
   } catch (cause) {
     ui.pushToast('error', cause instanceof Error ? cause.message : 'No se pudo asignar el ticket.')
+  }
+}
+
+async function unassignTicket(ticket: Ticket): Promise<void> {
+  try {
+    await store.unassign(ticket.id)
+    ui.pushToast('success', 'Ticket desasignado correctamente')
+  } catch (cause) {
+    ui.pushToast('error', cause instanceof Error ? cause.message : 'No se pudo desasignar el ticket.')
   }
 }
 
@@ -265,13 +281,14 @@ onMounted(() => {
               </template>
 
               <ActionMenu
-                :items="menuItems()"
+                :items="menuItems(row)"
                 :ariaLabel="'Más acciones del ticket'"
                 bordered
                 @select="
                   (key) => {
                     if (key === 'status') openTicket(row)
                     if (key === 'assign') openAssign(row)
+                    if (key === 'unassign') unassignTicket(row)
                     if (key === 'delete') openDelete(row)
                   }
                 "

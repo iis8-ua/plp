@@ -822,6 +822,27 @@ def ticket_assign(request):
     serializer.is_valid(raise_exception=True)
     data = serializer.validated_data
 
+    if data.get('unassign'):
+        if ticket.tecnico is None:
+            return Response(presenters.ticket_payload(ticket), status=status.HTTP_200_OK)
+        if role == 'tecnico' and ticket.tecnico_id != request.user.pk:
+            return error_response(
+                'FORBIDDEN',
+                'Solo puedes desasignarte los tickets que tienes asignados.',
+                status.HTTP_403_FORBIDDEN,
+            )
+
+        previous = presenters.full_name(ticket.tecnico)
+        ticket.tecnico = None
+        ticket.save(update_fields=['tecnico', 'actualizado'])
+        TicketHistorial.objects.create(
+            ticket=ticket,
+            titulo='Responsable retirado',
+            descripcion=f'{previous} ya no está asignado al ticket.',
+            autor=request.user,
+        )
+        return Response(presenters.ticket_payload(ticket), status=status.HTTP_200_OK)
+
     if role == 'tecnico':
         technician = request.user
     else:

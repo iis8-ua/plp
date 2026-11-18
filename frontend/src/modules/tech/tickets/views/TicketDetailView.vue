@@ -102,6 +102,16 @@ async function confirmAssign(technicianId: string): Promise<void> {
   }
 }
 
+async function unassignSelf(): Promise<void> {
+  if (!ticket.value) return
+  try {
+    await store.unassign(ticket.value.id)
+    ui.pushToast('success', 'Ya no tienes este ticket asignado')
+  } catch (cause) {
+    ui.pushToast('error', cause instanceof Error ? cause.message : 'No se pudo desasignar el ticket.')
+  }
+}
+
 async function confirmDelete(): Promise<void> {
   if (!ticket.value) return
   try {
@@ -232,12 +242,20 @@ onMounted(async () => {
             >
               Asígnamelo
             </AppButton>
-            <span
-              v-else-if="assignedToMe"
-              class="inline-flex h-9 items-center rounded-md bg-success-bg px-3 text-[12px] font-semibold text-success-text"
-            >
-              Asignado a ti
-            </span>
+            <div v-else-if="assignedToMe" class="flex flex-col items-end gap-2">
+              <span
+                class="inline-flex h-9 items-center rounded-md bg-success-bg px-3 text-[12px] font-semibold text-success-text"
+              >
+                Asignado a ti
+              </span>
+              <button
+                type="button"
+                class="text-[12px] font-semibold text-brand-700 hover:underline"
+                @click="unassignSelf"
+              >
+                Desasignarme
+              </button>
+            </div>
           </div>
 
           <div class="mt-5 space-y-3">

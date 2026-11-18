@@ -138,7 +138,7 @@ export async function addTicketMessage(ticketId: string, message: string): Promi
 
 export async function assignTicket(
   ticketId: string,
-  payload: { technicianId?: string; assignToMe?: boolean },
+  payload: { technicianId?: string; assignToMe?: boolean; unassign?: boolean },
 ): Promise<Ticket> {
   const response = await request<ApiTicket>('/ticket/assign', {
     method: 'PUT',
@@ -146,6 +146,7 @@ export async function assignTicket(
     body: {
       technician_id: payload.technicianId ?? '',
       assign_to_me: payload.assignToMe ?? false,
+      unassign: payload.unassign ?? false,
     },
   })
   return mapApiTicket(response)

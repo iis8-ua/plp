@@ -378,6 +378,19 @@ class ApiTests(APITestCase):
         self.assertEqual(self_assign.status_code, 200)
         self.assertEqual(self_assign.data['assignee']['name'], 'Laura Martínez')
 
+        unassigned = self.client.put(
+            '/ticket/assign?id=1076', {'unassign': True}, format='json'
+        )
+        self.assertEqual(unassigned.status_code, 200)
+        self.assertIsNone(unassigned.data['assignee'])
+
+        self.assertEqual(
+            self.client.put(
+                '/ticket/assign?id=1088', {'unassign': True}, format='json'
+            ).status_code,
+            403,
+        )
+
         self.login('comercio')
         self.assertEqual(
             self.client.put('/ticket/assign?id=1088', {}, format='json').status_code,

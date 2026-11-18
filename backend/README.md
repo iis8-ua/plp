@@ -76,7 +76,8 @@ Los roles se guardan en `pagos.PerfilUsuario`. Las rutas de administrador (`/com
   importe del saldo de la empresa; rechazar solo cambia el estado.
 - **Tickets**: `Ticket` + `TicketMensaje` + `TicketHistorial`. El comercio solo accede a los tickets
   de su empresa; el equipo técnico ve todos. Cada ticket tiene un `tecnico` asignado (opcional);
-  el administrador puede asignar a cualquier técnico y el técnico puede asignarse el ticket.
+  el administrador puede asignar a cualquier técnico, el técnico puede asignarse el ticket y
+  desasignarse los suyos.
 - **Empresas**: datos fiscales y de contacto (`razon_social`, `cif`, `tipo_empresa`,
   `actividad_economica`, dirección, contacto y web) además del nombre y estado.
 - **Técnicos**: usuarios con rol `tecnico`; el administrador puede listarlos y crear nuevos accesos

@@ -155,9 +155,6 @@ onMounted(async () => {
             </div>
           </div>
           <div class="flex items-center gap-4">
-            <p v-if="isCommerce" class="max-w-[220px] text-[12px] leading-[1.5] text-muted">
-              Los campos grises son de solo lectura.
-            </p>
             <span class="rounded-pill bg-success-bg px-3 py-1 text-[12px] font-semibold text-success-text">
               Cuenta {{ profile.status === 'Activo' ? 'activa' : 'inactiva' }}
             </span>
