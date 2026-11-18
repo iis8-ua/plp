@@ -1,0 +1,257 @@
+PLP · PASA LA PASTA
+API REST/JSON — estado actual de la implementación
+
+Base: /api en el frontend (nginx/Vite lo redirigen al backend)
+Formato: application/json
+Errores: { "code": "...", "message": "..." }
+
+AUTENTICACIÓN
+=============
+Cabecera: Authorization: Bearer <token>
+El token lo devuelve POST /login y es un token de DRF.
+POST /logout invalida el token de la sesión.
+`expires_in` es informativo: actualmente el token no caduca.
+
+Roles: admin | tecnico | comercio
+- admin: gestiona comercios, técnicos y puede asignar/eliminar tickets.
+- tecnico: ve todos los tickets, se asigna/desasigna los suyos, responde y elimina.
+- comercio: solo sus pagos, devoluciones, saldo y tickets.
+
+Códigos comunes
+- 401: falta el token o no es válido.
+- 403: el rol o la empresa no tiene permiso.
+- 400: validación del cuerpo/parámetros.
+- 404: recurso inexistente o de otra empresa.
+
+AUTENTICACIÓN
+=============
+POST /login?user=<usuario>
+Body: { "password": "<contraseña>" }
+= 200: { token, token_type: "Bearer", expires_in, user }
+       user = { id, name, role, subtitle, force_password_change,
+                company_id?, company_name? }
+= 400: falta el parámetro user
+= 401: usuario o contraseña incorrectos
+
+POST /logout
+Cabecera Bearer obligatoria
+= 200: { message }
+= 401: token ausente/inválido
+
+CAJA Y SALDO
+============
+GET /balance
+Cabecera Bearer. Requiere usuario con empresa.
+= 200: { company, balances: [ { currency: "EUR|USD|GBP", amount } ] }
+= 403: usuario sin empresa (admin/técnico)
+
+POST /withdraw?amount=<importe>&currency=<EUR|USD|GBP>
+Cabecera Bearer. Requiere empresa. currency por defecto EUR.
+= 200: { withdrawn, currency, balance }
+= 400: importe no válido, moneda sin saldo o saldo insuficiente
+= 403: usuario sin empresa
+
+PAGOS
+=====
+POST /pay
+Cabecera Bearer. Requiere empresa.
+Body: {
+  total_amount, payment_method: "card|cash|transfer",
+  products: [ { product_id, name, quantity, unit_price } ],
+  payment_data: { card_number?, expiry?, cvv?, holder?, iban? }
+}
+= 200: { transaction_id, status: "approved", authorized_amount }
+= 400: cuerpo mal formado
+= 403: usuario sin empresa
+
+Notas:
+- Crea una transacción APROBADA (no hay pasarela real).
+- Guarda titular, método y, si es tarjeta, marca/últimos 4/caducidad/token.
+- No se almacenan PAN completo ni CVV.
+- No incrementa el saldo del comercio (pendiente de implementar).
+- La moneda es EUR; no se acepta moneda en el cuerpo.
+
+GET /payments
+Cabecera Bearer. Requiere empresa.
+= 200: array de {
+  transaction_id, reference, client, invoice, concept, amount,
+  currency, payment_method, status, created_at
+}
+status: pending | approved | rejected | refunded
+Solo devuelve los pagos de la empresa autenticada.
+
+DEVOLUCIONES
+============
+POST /refunds/request?transaction_id=<uuid>&reason=<texto opcional>
+Cabecera Bearer. Requiere empresa.
+= 202: { request_id, transaction_id, status: "pending" }
+= 404: transacción inexistente o de otra empresa
+= 409: ya existe una devolución pendiente para esa transacción
+La devolución es siempre por el importe total del pago.
+
+POST /refunds/accept?id=<uuid de devolución>
+Cabecera Bearer. Requiere empresa.
+= 200: { refund, balance }
+- Marca la devolución como aceptada y descuenta el importe del saldo
+  de su moneda.
+- Si cubre el total del pago, la transacción pasa a REEMBOLSADA.
+= 400: devolución ya resuelta o saldo insuficiente
+= 404: devolución inexistente o de otra empresa
+
+POST /refunds/reject?id=<uuid de devolución>
+Cabecera Bearer. Requiere empresa.
+= 200: { refund, balance }
+= 400: devolución ya resuelta
+= 404: devolución inexistente o de otra empresa
+
+GET /refunds
+Cabecera Bearer. Requiere empresa.
+= 200: array de {
+  id, transaction_id, reference, client, amount, currency,
+  reason, status, created_at
+}
+status: pending | accepted | rejected
+Solo devoluciones de las transacciones de la empresa autenticada.
+
+EMPRESAS
+========
+GET /companies        (solo admin)
+= 200: array de Company (datos fiscales y de contacto incluidos)
+= 403: no admin
+
+PUT /companies/add    (solo admin)
+Body JSON:
+{
+  nombre, razon_social, cif, tipo_empresa, actividad_economica,
+  direccion, codigo_postal, ciudad, provincia, pais, telefono, email,
+  web?, username, password, force_change?
+}
+= 200: Company + { username, password }  (credenciales solo al crear)
+= 400: datos inválidos, usuario duplicado o contraseña < 8
+= 403: no admin
+Crea la empresa, sus 3 saldos y la cuenta de acceso con rol comercio.
+
+DELETE /companies/delete?id=<uuid>    (solo admin)
+= 200: Company con status "dado-de-baja" (baja lógica)
+= 403: no admin
+= 404: empresa inexistente
+
+PUT /companies/reactivate?id=<uuid>   (solo admin)
+= 200: Company con status "activo"
+= 403: no admin
+= 404: empresa inexistente
+
+Company = {
+  id, nombre, status: "activo|dado-de-baja", registered_at,
+  razon_social, cif, tipo_empresa, actividad_economica, direccion,
+  codigo_postal, ciudad, provincia, pais, telefono, email, web
+}
+
+TICKETS
+=======
+GET /tickets
+Cabecera Bearer.
+= 200: array de Ticket
+- comercio: solo los de su empresa.
+- tecnico/admin: todos.
+
+POST /ticket/add
+Cabecera Bearer.
+Body: { company_id?, subject, description?, status? }
+- Para comercio, la empresa se toma del usuario.
+= 200: Ticket
+= 400: empresa no válida o datos inválidos
+
+POST /ticket/message?id=<número>
+Cabecera Bearer.
+Body: { message }
+= 200: Ticket actualizado
+= 400: mensaje vacío
+= 404: ticket inexistente o de otra empresa
+Autor y rol se resuelven desde el token.
+
+PUT /ticket/update?id=<número>
+Cabecera Bearer. Solo tecnico/admin.
+Body: { status?: "open|in_progress|closed", reply? }
+= 200: Ticket actualizado (añade mensaje e historial si hay respuesta)
+= 400: sin estado ni respuesta
+= 403: comercio
+= 404: ticket inexistente
+
+PUT /ticket/assign?id=<número>
+Cabecera Bearer. Solo tecnico/admin.
+Body: { technician_id?, assign_to_me?, unassign? }
+- admin: asigna a cualquier técnico o desasigna.
+- tecnico: se asigna a sí mismo o se desasigna sus propios tickets.
+= 200: Ticket con assignee
+= 400: técnico inexistente
+= 403: intentar desasignar el ticket de otro técnico o rol no permitido
+= 404: ticket inexistente
+
+DELETE /ticket/delete?id=<número>
+Cabecera Bearer. Solo tecnico/admin.
+= 200: { message }
+= 403: comercio
+= 404: ticket inexistente
+(El borrado es físico y elimina mensajes e historial en cascada.)
+
+Ticket = {
+  id (número como string), company_id, company_name,
+  subject, description, status: "open|in_progress|closed",
+  reply, assignee: { id, name } | null,
+  created_at, updated_at,
+  messages: [ { id, author, role: "comercio|tecnico", message, created_at } ],
+  history: [ { id, at, title, description, author } ]
+}
+
+TÉCNICOS
+========
+GET /technicians        (solo admin)
+= 200: array de {
+  id, name, email, username, role: "tecnico",
+  status: "Activo|Inactivo",
+  activity: { assigned, open, in_progress, closed }
+}
+= 403: no admin
+
+POST /technicians       (solo admin)
+Body: {
+  name, email, username, password (mín. 8), force_change?
+}
+= 200: Technician + { password }  (solo al crear)
+= 400: usuario/correo duplicado o contraseña corta
+= 403: no admin
+
+PERFIL
+======
+GET /profile
+Cabecera Bearer.
+= 200: {
+  id, name, email, username, role, status: "Activo|Inactivo",
+  company: Company | null,
+  activity: { assigned, open, in_progress, closed } | null,
+  force_password_change
+}
+
+PUT /profile
+Cabecera Bearer.
+- comercio: actualiza datos de su empresa (nombre, razón social, CIF,
+  tipo, actividad, dirección, CP, ciudad, provincia, país, teléfono,
+  email, web).
+- admin/técnico: actualiza name y email.
+= 200: Profile actualizado
+= 400: datos inválidos
+
+POST /profile/password
+Cabecera Bearer.
+Body: { current_password, new_password (mín. 8) }
+= 200: { message }
+= 400: contraseña actual incorrecta o nueva demasiado corta
+
+DATOS DE DEMOSTRACIÓN (seed_demo)
+=================================
+admin / admin                 → admin
+tpv01 / secret                → técnico
+comercio / comercio           → comercio (Librería Horizonte)
+cruiz, dtorres, egarcia,
+msanchez, promero / tecnico123 → técnicos

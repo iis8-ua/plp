@@ -1,0 +1,190 @@
+-- ============================================================================
+-- PLP · Pasa La Pasta — esquema de datos actual
+--
+-- Refleja el modelo implementado en backend/pagos (migraciones 0001–0004).
+-- Django gestiona además las tablas auth_user, auth_group, auth_permission,
+-- django_* y authtoken_token; aquí solo se referencian las necesarias.
+--
+-- Notas:
+--   * UUIDField en MySQL se almacena como CHAR(32) sin guiones.
+--   * Las fechas usan DATETIME(6) (Django DateTimeField).
+--   * Los catálogos se siembran con UUID fijos para que la migración sea
+--     reproducible; `seed_demo` completa empresas, usuarios, pagos y tickets.
+-- ============================================================================
+
+CREATE TABLE METODOS_PAGO (
+    ID     CHAR(32)    NOT NULL,
+    NOMBRE VARCHAR(30) NOT NULL,
+    PRIMARY KEY (ID),
+    UNIQUE KEY UQ_METODOS_NOMBRE (NOMBRE)
+);
+
+CREATE TABLE MONEDAS (
+    CODIGO    CHAR(3)     NOT NULL,                 -- EUR, USD, GBP
+    NOMBRE    VARCHAR(30) NOT NULL,
+    DECIMALES TINYINT     NOT NULL DEFAULT 2,
+    PRIMARY KEY (CODIGO)
+);
+
+CREATE TABLE EMPRESAS (
+    ID                   CHAR(32)     NOT NULL,
+    NOMBRE               VARCHAR(100) NOT NULL,
+    FECHA_REGISTRO       DATETIME(6)  NOT NULL,
+    ESTADO               VARCHAR(12)  NOT NULL DEFAULT 'activo',  -- activo | dado-de-baja
+    RAZON_SOCIAL         VARCHAR(150) NOT NULL DEFAULT '',
+    CIF                   VARCHAR(20)  NOT NULL DEFAULT '',
+    TIPO_EMPRESA          VARCHAR(40)  NOT NULL DEFAULT '',
+    ACTIVIDAD_ECONOMICA   VARCHAR(150) NOT NULL DEFAULT '',
+    DIRECCION             VARCHAR(200) NOT NULL DEFAULT '',
+    CODIGO_POSTAL         VARCHAR(10)  NOT NULL DEFAULT '',
+    CIUDAD                VARCHAR(80)  NOT NULL DEFAULT '',
+    PROVINCIA             VARCHAR(80)  NOT NULL DEFAULT '',
+    PAIS                  VARCHAR(80)  NOT NULL DEFAULT 'España',
+    TELEFONO              VARCHAR(30)  NOT NULL DEFAULT '',
+    EMAIL                 VARCHAR(150) NOT NULL DEFAULT '',
+    WEB                   VARCHAR(200) NOT NULL DEFAULT '',
+    PRIMARY KEY (ID)
+);
+
+-- Perfil de aplicación de un usuario de Django.
+-- ROL: admin | tecnico | comercio
+CREATE TABLE PERFILES_USUARIO (
+    ID                    BIGINT      NOT NULL AUTO_INCREMENT,
+    USUARIO_ID            BIGINT      NOT NULL,
+    ROL                   VARCHAR(10) NOT NULL DEFAULT 'tecnico',
+    EMPRESA_ID            CHAR(32),
+    FORCE_PASSWORD_CHANGE TINYINT(1)  NOT NULL DEFAULT 0,
+    PRIMARY KEY (ID),
+    UNIQUE KEY UQ_PERFILES_USUARIO (USUARIO_ID),
+    CONSTRAINT FK_PERFILES_USUARIO FOREIGN KEY (USUARIO_ID) REFERENCES auth_user (ID) ON DELETE CASCADE,
+    CONSTRAINT FK_PERFILES_EMPRESA FOREIGN KEY (EMPRESA_ID) REFERENCES EMPRESAS (ID)
+);
+
+CREATE TABLE INFORMACION_PAGOS (
+    ID        CHAR(32)     NOT NULL,
+    METODO_ID CHAR(32)     NOT NULL,
+    TITULAR   VARCHAR(100) NOT NULL,
+    PRIMARY KEY (ID),
+    CONSTRAINT FK_INFO_METODO FOREIGN KEY (METODO_ID) REFERENCES METODOS_PAGO (ID)
+);
+
+CREATE TABLE TARJETAS (
+    ID         CHAR(32)    NOT NULL,
+    MARCA      VARCHAR(20) NOT NULL,
+    ULTIMOS4   CHAR(4)     NOT NULL,
+    CADUCIDAD  CHAR(5)     NOT NULL,
+    TOKEN      VARCHAR(64) NOT NULL,
+    PRIMARY KEY (ID),
+    UNIQUE KEY UQ_TARJETAS_TOKEN (TOKEN),
+    CONSTRAINT FK_TARJETAS_INFO FOREIGN KEY (ID) REFERENCES INFORMACION_PAGOS (ID) ON DELETE CASCADE
+);
+
+CREATE TABLE CUENTAS_BANCARIAS (
+    ID   CHAR(32)    NOT NULL,
+    IBAN VARCHAR(34) NOT NULL,
+    PRIMARY KEY (ID),
+    CONSTRAINT FK_CUENTAS_INFO FOREIGN KEY (ID) REFERENCES INFORMACION_PAGOS (ID) ON DELETE CASCADE
+);
+
+CREATE TABLE TRANSACCIONES (
+    ID             CHAR(32)      NOT NULL,
+    RECEPTOR_ID    CHAR(32)      NOT NULL,
+    INFORMACION_ID CHAR(32)      NOT NULL,
+    CONCEPTO       VARCHAR(255)  NOT NULL,
+    CANTIDAD       DECIMAL(12,2) NOT NULL,
+    COMISION       DECIMAL(12,2) NOT NULL DEFAULT 0,
+    MONEDA         CHAR(3)       NOT NULL,
+    ESTADO         VARCHAR(11)   NOT NULL DEFAULT 'PENDIENTE',
+                   -- PENDIENTE | APROBADA | RECHAZADA | REEMBOLSADA
+    FECHA          DATETIME(6)   NOT NULL,
+    NUM_FACTURA    VARCHAR(30),                          -- NULL si aún no hay factura
+    REFERENCIA     VARCHAR(20),                          -- P-1048
+    PRIMARY KEY (ID),
+    UNIQUE KEY UQ_TX_INFO (INFORMACION_ID),
+    UNIQUE KEY UQ_TX_FACTURA (RECEPTOR_ID, NUM_FACTURA),
+    CONSTRAINT FK_TX_RECEPTOR FOREIGN KEY (RECEPTOR_ID)    REFERENCES EMPRESAS (ID),
+    CONSTRAINT FK_TX_INFO     FOREIGN KEY (INFORMACION_ID) REFERENCES INFORMACION_PAGOS (ID),
+    CONSTRAINT FK_TX_MONEDA   FOREIGN KEY (MONEDA)         REFERENCES MONEDAS (CODIGO),
+    CONSTRAINT CHK_TX_CANTIDAD CHECK (CANTIDAD > 0),
+    CONSTRAINT CHK_TX_COMISION CHECK (COMISION >= 0 AND COMISION <= CANTIDAD)
+);
+
+CREATE TABLE REEMBOLSOS (
+    ID              CHAR(32)      NOT NULL,
+    TRANSACCION_ID  CHAR(32)      NOT NULL,
+    CANTIDAD        DECIMAL(12,2) NOT NULL,
+    FECHA           DATETIME(6)   NOT NULL,
+    MOTIVO          VARCHAR(255),
+    ESTADO          VARCHAR(9)    NOT NULL DEFAULT 'PENDIENTE',
+                    -- PENDIENTE | ACEPTADO | RECHAZADO
+    PRIMARY KEY (ID),
+    CONSTRAINT FK_REEMBOLSOS_TX FOREIGN KEY (TRANSACCION_ID) REFERENCES TRANSACCIONES (ID),
+    CONSTRAINT CHK_REEMBOLSOS_CANTIDAD CHECK (CANTIDAD > 0)
+);
+
+CREATE TABLE SALDOS_EMPRESAS (
+    EMPRESA_ID CHAR(32)      NOT NULL,
+    MONEDA     CHAR(3)       NOT NULL,
+    SALDO      DECIMAL(12,2) NOT NULL DEFAULT 0,
+    PRIMARY KEY (EMPRESA_ID, MONEDA),
+    CONSTRAINT FK_SALDOS_EMPRESA FOREIGN KEY (EMPRESA_ID) REFERENCES EMPRESAS (ID),
+    CONSTRAINT FK_SALDOS_MONEDA  FOREIGN KEY (MONEDA)     REFERENCES MONEDAS (CODIGO),
+    CONSTRAINT CHK_SALDOS_NO_NEGATIVO CHECK (SALDO >= 0)
+);
+
+-- Tickets de soporte. NUMERO es el identificador visible (1086…).
+CREATE TABLE TICKETS (
+    ID           CHAR(32)     NOT NULL,
+    NUMERO       INT UNSIGNED NOT NULL,
+    EMPRESA_ID   CHAR(32)     NOT NULL,
+    ASUNTO       VARCHAR(140) NOT NULL,
+    DESCRIPCION  LONGTEXT     NOT NULL,
+    ESTADO       VARCHAR(10)  NOT NULL DEFAULT 'ABIERTO',
+                 -- ABIERTO | EN_PROCESO | CERRADO
+    TECNICO_ID   BIGINT,                              -- técnico asignado (opcional)
+    CREADO       DATETIME(6)  NOT NULL,
+    ACTUALIZADO  DATETIME(6)  NOT NULL,
+    PRIMARY KEY (ID),
+    UNIQUE KEY UQ_TICKETS_NUMERO (NUMERO),
+    CONSTRAINT FK_TICKETS_EMPRESA FOREIGN KEY (EMPRESA_ID) REFERENCES EMPRESAS (ID),
+    CONSTRAINT FK_TICKETS_TECNICO FOREIGN KEY (TECNICO_ID) REFERENCES auth_user (ID) ON DELETE SET NULL
+);
+
+CREATE TABLE TICKET_MENSAJES (
+    ID        CHAR(32)   NOT NULL,
+    TICKET_ID CHAR(32)   NOT NULL,
+    AUTOR_ID  BIGINT     NOT NULL,
+    ROL       VARCHAR(8) NOT NULL,          -- comercio | tecnico
+    MENSAJE   LONGTEXT   NOT NULL,
+    CREADO    DATETIME(6) NOT NULL,
+    PRIMARY KEY (ID),
+    CONSTRAINT FK_MENSAJES_TICKET FOREIGN KEY (TICKET_ID) REFERENCES TICKETS (ID) ON DELETE CASCADE,
+    CONSTRAINT FK_MENSAJES_AUTOR  FOREIGN KEY (AUTOR_ID)  REFERENCES auth_user (ID)
+);
+
+CREATE TABLE TICKET_HISTORIAL (
+    ID          CHAR(32)     NOT NULL,
+    TICKET_ID   CHAR(32)     NOT NULL,
+    TITULO      VARCHAR(100) NOT NULL,
+    DESCRIPCION LONGTEXT     NOT NULL,
+    AUTOR_ID    BIGINT,
+    FECHA       DATETIME(6)  NOT NULL,
+    PRIMARY KEY (ID),
+    CONSTRAINT FK_HISTORIAL_TICKET FOREIGN KEY (TICKET_ID) REFERENCES TICKETS (ID) ON DELETE CASCADE,
+    CONSTRAINT FK_HISTORIAL_AUTOR  FOREIGN KEY (AUTOR_ID)  REFERENCES auth_user (ID)
+);
+
+-- ---------------------------------------------------------------------------
+-- Semilla de catálogos (equivalente a pagos.0002_seed_catalogos + seed_demo)
+-- ---------------------------------------------------------------------------
+
+INSERT INTO METODOS_PAGO (ID, NOMBRE) VALUES
+    ('f47ac10b58cc4372a5670e02b2c3d479', 'Tarjeta'),
+    ('6fa459eaee8a4ca4894edb77e160355e', 'Transferencia'),
+    ('16fd27068baf433b82eb8c7fada847da', 'Bizum'),
+    ('8b7c6d5e4f3a29180716253443526170', 'Efectivo');
+
+INSERT INTO MONEDAS (CODIGO, NOMBRE, DECIMALES) VALUES
+    ('EUR', 'Euro', 2),
+    ('USD', 'Dólar estadounidense', 2),
+    ('GBP', 'Libra esterlina', 2);
