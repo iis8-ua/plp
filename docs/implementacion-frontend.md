@@ -6,7 +6,7 @@ Documento de progreso y decisiones de la implementación realizada a partir de `
 |---|---|
 | Stack | Vue 3 + TypeScript + Vite + Tailwind CSS + Vue Router + Pinia |
 | Carpeta | `frontend/` |
-| Modo de datos | Solo API real (sin mocks); el backend es un mock con estado en memoria |
+| Modo de datos | API real sobre MySQL; datos de demostración con `seed_demo` |
 | Build | `npm run build` correcto |
 | Typecheck | `npm run typecheck` correcto |
 | QA funcional | Flujos E2E y tests de backend verificados; pendiente repetir el QA en navegador contra la API |
@@ -112,6 +112,29 @@ Documento de progreso y decisiones de la implementación realizada a partir de `
   - Conversación comercio ↔ técnico y formulario para añadir comentario.
   - Historial de estados del ticket.
 
+### FASE 8 — Tickets, técnicos y perfiles ✅
+
+- Bandeja de tickets rediseñada para técnico y administrador:
+  - Cuatro métricas, filtros y orden.
+  - Pestañas “Asignados a mí / Sin asignar / Todos”.
+  - Columna de responsable y acciones por rol.
+- Asignación de tickets:
+  - El técnico puede asignarse el ticket a sí mismo.
+  - El administrador asigna o reasigna con buscador de técnicos y número de tickets abiertos.
+  - El historial registra la asignación.
+- Detalle del ticket con responsable, gestión, conversación, historial y eliminación para el equipo técnico.
+- **Técnicos** (solo administrador):
+  - Métricas, buscador, filtro por estado y tabla con correo/usuario/rol/estado.
+  - Alta de técnico con generación de contraseña y “obligar a cambiarla”.
+  - Modal de confirmación con usuario/contraseña y botones de copia.
+  - “Ver perfil” con actividad del técnico.
+- **Mi perfil**:
+  - Administrador y técnico: datos personales, actividad y cambio de contraseña.
+  - Comercio: datos fiscales, dirección, contacto y cambio de contraseña.
+  - Acceso desde el bloque de perfil de la barra lateral.
+- **Alta de comercio** pasa de modal a página completa con datos fiscales, dirección y contacto.
+- La barra lateral muestra “Comercios” también al técnico (con acceso restringido) y “Técnicos” solo al administrador.
+
 ### FASE 6 — Responsive y revisión visual ✅
 
 - Escritorio mantiene la referencia de 1440 × 1024.
@@ -155,6 +178,12 @@ No se creó una ruta por cada frame. Los frames se agruparon en páginas funcion
 | Soporte del comercio | 79 | Métricas, filtros, tabla y paginación |
 | Nuevo ticket | 80 | Modal con asunto y descripción obligatorios |
 | Detalle del ticket del comercio | 81 | Datos, conversación, comentario e historial |
+| Bandeja de tickets del equipo | 02, 34 | Variantes técnico/administrador, asignación y responsables |
+| Detalle del ticket del equipo | 03, 34 | Gestión, asignación, historial y eliminación |
+| Asignar técnico | 34 | Buscador y lista de técnicos con carga |
+| Técnicos | 82, 83, 84 | Listado, alta y confirmación con credenciales |
+| Mi perfil | 85, 86, 87, 88 | Administrador, técnico, comercio y cambio de contraseña |
+| Nuevo comercio | 38 | Alta completa con datos fiscales y contacto |
 | Menú y estados del ticket | 17, 18, 19 | Modal, menú y selector |
 
 **Páginas nuevas no presentes en Figma**, construidas con el sistema visual existente:
@@ -242,18 +271,23 @@ frontend/
 | Reactivación | `PUT /companies/reactivate?id=` | Implementado |
 | Devoluciones | `GET /refunds` | Implementado |
 | Solicitar devolución | `POST /refunds/request?transaction_id=&reason=` | Implementado |
-| Aceptar devolución | `POST /refunds/accept?transaction_id=` | Implementado; descuenta saldo |
-| Rechazar devolución | `POST /refunds/reject?transaction_id=` | Implementado |
+| Aceptar devolución | `POST /refunds/accept?id=` | Implementado; descuenta saldo |
+| Rechazar devolución | `POST /refunds/reject?id=` | Implementado |
+| Pagos | `POST /pay` | Implementado; crea transacción real |
 | Tickets | `GET /tickets` | Implementado (filtrados por empresa para el comercio) |
 | Mensaje de ticket | `POST /ticket/message?id=` | Implementado |
+| Asignar ticket | `PUT /ticket/assign?id=` | Implementado |
+| Técnicos | `GET /technicians`, `POST /technicians` | Implementado (admin) |
+| Perfil | `GET /profile`, `PUT /profile` | Implementado |
+| Cambiar contraseña | `POST /profile/password` | Implementado |
 
 ### Brechas del contrato que se asumen en la UI
 
 - `GET /payments` no devuelve tarjeta, comisión ni neto: la tabla y el detalle muestran cliente, factura, concepto, importe, estado y fecha.
 - No existe `GET /payments/{id}`: el detalle se resuelve con la lista; un acceso directo recarga antes de buscar.
 - `POST /refunds/accept` descuenta el importe del saldo de esa moneda; no hay pasarela real de abono al cliente.
-- El backend mock guarda tickets, comercios, saldos y devoluciones en memoria: los cambios se pierden al reiniciar.
-- La autorización de administrador sigue siendo del backend (`X-Admin-Token` en el mock); la guarda del cliente solo protege la navegación.
+- El backend y la base de datos son la fuente de verdad: los cambios persisten entre reinicios.
+- El rol de administrador se valida en servidor a partir del token de DRF; la guarda del cliente solo protege la navegación.
 
 ---
 
@@ -287,22 +321,22 @@ npm run build
 ```
 
 ```bash
-docker compose exec -T -e DB_ENGINE=sqlite backend python manage.py test api
+docker run --rm -v "$PWD":/app -w /app/backend -e DB_ENGINE=sqlite plp-backend python manage.py test api pagos
 ```
 
-Resultado: **sin errores de tipos ni de build**; **17 tests del backend en verde**.
+Resultado: **sin errores de tipos ni de build**; **39 tests del backend en verde** (API + modelo).
 
-### Integración con la API
+### Integración con la API y la base de datos
 
-Comprobado contra el stack Docker (`backend` + MySQL):
+Comprobado contra el stack Docker (`backend` + MySQL) con datos reales:
 
-- `POST /login` con `admin`, `tpv01` y `comercio` devuelve `token` y `user.role`.
-- `GET /tickets` devuelve tickets de soporte con `subject`, `status`, `reply` e historial.
-- `PUT /ticket/update` persiste `status` y `reply` y añade entradas al historial.
-- `GET /companies` devuelve `status` y `registered_at`; la baja es lógica.
-- `PUT /companies/reactivate?id=` reactiva una empresa dada de baja.
-- `GET /balance` devuelve las cuentas EUR/USD/GBP y `POST /withdraw` descuenta el importe de la moneda indicada.
-- La app arranca sin backend mostrando error de conexión, sin datos de reserva.
+- `POST /login` con `admin`, `tpv01` y `comercio` devuelve token de DRF y `user.role`.
+- `GET /balance`, `/payments`, `/refunds` y `/tickets` están filtrados por la empresa del token.
+- Importes y saldos llegan como números; los estados de pago incluyen `pending`, `approved`, `rejected` y `refunded`.
+- Aceptar una devolución por `id` descuenta el saldo y marca la transacción como `refunded`.
+- Un ticket creado y su comentario siguen existiendo tras reiniciar el backend.
+- `GET /companies` responde 200 al admin y 403 al técnico usando solo el token.
+- `seed_demo` carga usuarios, empresas, saldos, pagos, devoluciones y tickets en la base de datos.
 
 ### QA en navegador
 
@@ -347,18 +381,18 @@ Correcciones aplicadas tras la comparación:
 4. **Reactivación**: nueva acción no presente en Figma, aprobada funcionalmente.
 5. **Devoluciones**: el comercio gestiona las solicitudes y aceptar descuenta su saldo, según los mockups 76–78.
 6. **Soporte del comercio**: listado, alta y conversación con historial, según los mockups 79–81.
-7. **Móvil/tablet**: no hay diseño de referencia; se aplicaron patrones coherentes.
-8. **Título “Administradora”**: el rol admin muestra ese subtítulo; Figma muestra “Técnica de soporte” para Laura.
-9. **Pagos**: la API no aporta cliente, tarjeta, factura, comisión ni neto; se muestran método, concepto, importe, estado y fecha.
-10. **Estados de pago**: la API solo distingue `approved`/`rejected`; no hay “en proceso” ni “reembolsado”.
+7. **Asignación de tickets**: técnico y administrador tienen acciones distintas; el técnico solo puede asignarse a sí mismo.
+8. **Mi perfil**: el comercio edita datos de su empresa; técnicos y administradores editan sus datos personales.
+9. **Móvil/tablet**: no hay diseño de referencia; se aplicaron patrones coherentes.
+10. **Título “Administradora”**: el rol admin muestra ese subtítulo; Figma muestra “Técnica de soporte” para Laura.
+11. **Pagos**: la API no aporta tarjeta, comisión ni neto; se muestran cliente, factura, concepto, importe, estado y fecha.
+12. **Estados de pago**: se exponen los cuatro del modelo (`pending`, `approved`, `rejected`, `refunded`) con badge y filtro.
 
 ### Pendiente de producto/backend
 
-- **Autorización de administrador en el backend**: la guarda `meta.roles` solo protege la navegación en el cliente, no es una barrera de seguridad. `GET /companies`, `PUT /companies/add`, `PUT /companies/reactivate` y `DELETE /companies/delete` deben validar el rol en servidor.
-- **Persistencia**: el backend mock guarda tickets y empresas en memoria; se pierde al reiniciar.
-- **Token con identidad**: el mock acepta cualquier token no vacío y usa `X-Admin-Token` compartido; el backend definitivo debe derivar el rol del token.
 - Flujo administrativo de aceptar/rechazar devoluciones (fuera del portal del comercio).
 - Repetir el QA en navegador del nuevo estado de acceso restringido (`/tecnico/comercios/restringido`).
-- Comparar visualmente los frames 75–81 (devoluciones y soporte del comercio) una vez levantado el frontend.
+- Comparar visualmente los frames 75–88 (devoluciones, soporte, técnicos y perfiles) una vez levantado el frontend.
+- Definir la desactivación de técnicos: el filtro de estado existe, pero aún no hay endpoint para cambiar `is_active`.
 - Validar con el equipo si la paginación debe limitarse a anteriores/siguientes.
 - Revisión de accesibilidad con usuarios reales y pruebas en navegadores/dispositivos.
