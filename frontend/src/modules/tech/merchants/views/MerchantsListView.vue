@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { useMerchantsStore } from '@/stores/merchants.store'
 import { useUiStore } from '@/stores/ui.store'
 import PageHeader from '@/shared/components/layout/PageHeader.vue'
@@ -14,14 +15,13 @@ import StatusBadge from '@/shared/components/ui/StatusBadge.vue'
 import ConfirmMerchantDialog from '@/modules/tech/merchants/components/ConfirmMerchantDialog.vue'
 import MerchantActionsMenu from '@/modules/tech/merchants/components/MerchantActionsMenu.vue'
 import MerchantFilters from '@/modules/tech/merchants/components/MerchantFilters.vue'
-import MerchantFormModal from '@/modules/tech/merchants/components/MerchantFormModal.vue'
 import { formatDate } from '@/shared/utils/format'
 import type { Company } from '@/types'
 
 const store = useMerchantsStore()
 const ui = useUiStore()
+const router = useRouter()
 
-const createOpen = ref(false)
 const confirmOpen = ref(false)
 const selected = ref<Company | null>(null)
 const mode = ref<'deactivate' | 'reactivate'>('deactivate')
@@ -41,14 +41,6 @@ const sortLabel = computed(() =>
 const noResults = computed(
   () => !store.loading && store.companies.length > 0 && store.sorted.length === 0,
 )
-
-function onCreated(company: Company): void {
-  store.filters.search = ''
-  store.filters.status = 'todos'
-  store.filters.sort = 'recientes'
-  store.page = 1
-  ui.pushToast('success', `Comercio ${company.name} creado correctamente`)
-}
 
 function askDeactivate(company: Company): void {
   selected.value = company
@@ -91,7 +83,7 @@ onMounted(() => {
       description="Da de alta comercios y gestiona su acceso a PLP."
     >
       <template #actions>
-        <AppButton @click="createOpen = true">
+        <AppButton to="/tecnico/comercios/nuevo">
           <AppIcon name="plus" :size="18" /> Nuevo comercio
         </AppButton>
       </template>
@@ -112,7 +104,7 @@ onMounted(() => {
         description="Da de alta un comercio para que pueda empezar a operar con PLP."
         action-label="+ Nuevo comercio"
         icon="shop"
-        @action="createOpen = true"
+        @action="router.push('/tecnico/comercios/nuevo')"
       />
     </section>
 
@@ -189,7 +181,6 @@ onMounted(() => {
       </template>
     </section>
 
-    <MerchantFormModal :open="createOpen" @close="createOpen = false" @created="onCreated" />
     <ConfirmMerchantDialog
       :open="confirmOpen"
       :company="selected"

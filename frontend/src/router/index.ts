@@ -9,6 +9,9 @@ import TicketsListView from '@/modules/tech/tickets/views/TicketsListView.vue'
 import TicketDetailView from '@/modules/tech/tickets/views/TicketDetailView.vue'
 import MerchantsListView from '@/modules/tech/merchants/views/MerchantsListView.vue'
 import MerchantsRestrictedView from '@/modules/tech/merchants/views/MerchantsRestrictedView.vue'
+import MerchantCreateView from '@/modules/tech/merchants/views/MerchantCreateView.vue'
+import TecnicosListView from '@/modules/tech/technicians/views/TecnicosListView.vue'
+import ProfileView from '@/modules/profile/views/ProfileView.vue'
 import MerchantHomeView from '@/modules/merchant/home/views/MerchantHomeView.vue'
 import PaymentsListView from '@/modules/merchant/payments/views/PaymentsListView.vue'
 import PaymentDetailView from '@/modules/merchant/payments/views/PaymentDetailView.vue'
@@ -71,10 +74,28 @@ const router = createRouter({
           meta: { title: 'Comercios', portal: 'tecnico', roles: ['admin'] },
         },
         {
+          path: 'comercios/nuevo',
+          name: 'tech-merchant-create',
+          component: MerchantCreateView,
+          meta: { title: 'Nuevo comercio', portal: 'tecnico', roles: ['admin'] },
+        },
+        {
           path: 'comercios/restringido',
           name: 'tech-access-restricted',
           component: MerchantsRestrictedView,
           meta: { title: 'Comercios', portal: 'tecnico' },
+        },
+        {
+          path: 'tecnicos',
+          name: 'tech-technicians',
+          component: TecnicosListView,
+          meta: { title: 'Técnicos', portal: 'tecnico', roles: ['admin'] },
+        },
+        {
+          path: 'perfil',
+          name: 'tech-profile',
+          component: ProfileView,
+          meta: { title: 'Mi perfil', portal: 'tecnico' },
         },
       ],
     },
@@ -125,6 +146,12 @@ const router = createRouter({
           name: 'merchant-ticket-detail',
           component: SupportDetailView,
           meta: { title: 'Detalle del ticket', portal: 'comercio' },
+        },
+        {
+          path: 'perfil',
+          name: 'merchant-profile',
+          component: ProfileView,
+          meta: { title: 'Mi perfil', portal: 'comercio' },
         },
       ],
     },

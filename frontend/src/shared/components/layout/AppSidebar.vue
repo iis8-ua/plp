@@ -33,15 +33,23 @@ const items = computed<NavItem[]>(() => {
     ]
   }
 
-  const techItems: NavItem[] = [{ label: 'Tickets', to: '/tecnico/tickets', icon: 'ticket' }]
+  const techItems: NavItem[] = [
+    { label: 'Tickets', to: '/tecnico/tickets', icon: 'ticket' },
+    { label: 'Comercios', to: '/tecnico/comercios', icon: 'shop' },
+  ]
   if (auth.role === 'admin') {
-    techItems.push({ label: 'Comercios', to: '/tecnico/comercios', icon: 'shop' })
+    techItems.push({ label: 'Técnicos', to: '/tecnico/tecnicos', icon: 'inbox' })
   }
   return techItems
 })
 
-const sectionLabel = computed(() =>
-  props.variant === 'comercio' ? 'ESPACIO COMERCIO' : 'ESPACIO TÉCNICO',
+const sectionLabel = computed(() => {
+  if (props.variant === 'comercio') return 'ESPACIO COMERCIO'
+  return auth.role === 'admin' ? 'ADMINISTRACIÓN' : 'ESPACIO TÉCNICO'
+})
+
+const profileRoute = computed(() =>
+  props.variant === 'comercio' ? '/comercio/perfil' : '/tecnico/perfil',
 )
 
 const userSubtitle = computed(() =>
@@ -145,15 +153,26 @@ async function handleLogout(): Promise<void> {
             shape="circle"
             tone="brand"
           />
-          <div class="min-w-0 flex-1">
-            <p
-              class="truncate font-semibold leading-[1.5] text-white"
-              :class="variant === 'comercio' ? 'text-[13px]' : 'text-[14px]'"
-            >
-              {{ auth.user?.name }}
-            </p>
-            <p class="truncate text-[12px] leading-[1.5] text-brand-300">{{ userSubtitle }}</p>
-          </div>
+          <button
+            type="button"
+            class="flex min-w-0 flex-1 items-center justify-between gap-2 rounded-md px-1 py-1 text-left transition-colors hover:bg-white/5"
+            :aria-label="'Ir a mi perfil'"
+            @click="go(profileRoute)"
+          >
+            <span class="min-w-0">
+              <span
+                class="block truncate font-semibold leading-[1.5] text-white"
+                :class="variant === 'comercio' ? 'text-[13px]' : 'text-[14px]'"
+              >
+                {{ auth.user?.name }}
+              </span>
+              <span class="block truncate text-[12px] leading-[1.5] text-brand-300">{{ userSubtitle }}</span>
+            </span>
+            <span class="flex shrink-0 items-center gap-1 text-[11px] font-medium text-brand-300">
+              Mi perfil
+              <AppIcon name="chevron-right" :size="14" />
+            </span>
+          </button>
         </div>
         <button
           type="button"
