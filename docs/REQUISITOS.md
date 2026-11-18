@@ -229,10 +229,3 @@ La implementación actual es una **API REST/JSON** sobre Django + Django REST Fr
 | Perfiles | RF-46 – RF-48 | US-06 – US-07 | `/profile`, `/profile/password` |
 | Interoperabilidad | RF-49 | US-26 | *(pendiente)* |
 
-## 9. Brechas conocidas (estado actual)
-
-1. Los tokens no caducan.
-2. No hay endpoint para desactivar técnicos.
-3. El abono al cliente es simulado: aceptar una devolución solo ajusta el saldo del comercio.
-4. La interoperabilidad con otros proyectos no está implementada.
-5. No hay pasarela real de pagos: la aprobación/rechazo se simula.
