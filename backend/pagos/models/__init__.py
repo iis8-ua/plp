@@ -2,8 +2,8 @@
 
 Traduce a Django el esquema ``Grupo05-TPV-Especificacion/pasarela_pagos.sql``.
 Cada modelo vive en su propio módulo y se reexporta aquí: Django descubre los
-modelos al importar ``api.models`` y el resto del código puede seguir usando
-``from api.models import Transaccion``.
+modelos al importar ``pagos.models`` y el resto del código puede usar
+``from pagos.models import Transaccion``.
 
 Diferencias inevitables respecto al SQL de referencia:
 
@@ -19,12 +19,15 @@ Diferencias inevitables respecto al SQL de referencia:
 from .moneda import Moneda
 from .metodo_pago import MetodoPago
 from .empresa import Empresa
+from .perfil_usuario import PerfilUsuario
 from .informacion_pago import InformacionPago
 from .tarjeta import Tarjeta
 from .cuenta_bancaria import CuentaBancaria
 from .transaccion import Transaccion
+from .transaccion_historial import TransaccionHistorial
 from .reembolso import Reembolso
 from .saldo_empresa import SaldoEmpresa
+from .ticket import Ticket, TicketHistorial, TicketMensaje
 
 __all__ = [
     'CuentaBancaria',
@@ -32,8 +35,13 @@ __all__ = [
     'InformacionPago',
     'MetodoPago',
     'Moneda',
+    'PerfilUsuario',
     'Reembolso',
     'SaldoEmpresa',
     'Tarjeta',
+    'Ticket',
+    'TicketHistorial',
+    'TicketMensaje',
     'Transaccion',
+    'TransaccionHistorial',
 ]

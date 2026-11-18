@@ -50,6 +50,11 @@ paths:
                 token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
                 token_type: Bearer
                 expires_in: 3600
+                user:
+                  id: usr_tpv01
+                  name: Laura Martínez
+                  role: tecnico
+                  subtitle: Técnica de soporte
         "400":
           description: No se ha indicado el parámetro `user` o la petición está mal formada.
           content:
@@ -104,12 +109,13 @@ paths:
         - Caja
       summary: Retirar dinero del saldo de la empresa
       description: |
-        Resta `amount` del saldo de la empresa autenticada. Un importe mal escrito o superior
-        al saldo disponible produce un 400.
+        Resta `amount` del saldo de la moneda indicada en `currency` (EUR por defecto).
+        Un importe mal escrito o superior al saldo disponible de esa moneda produce un 400.
       security:
         - bearerAuth: []
       parameters:
         - $ref: "#/components/parameters/Amount"
+        - $ref: "#/components/parameters/Currency"
       responses:
         "200":
           description: Todo correcto; retirada realizada.
@@ -152,10 +158,10 @@ paths:
         - Caja
       summary: Registrar y procesar un pago
       description: |
-        Procesa un pago con los datos del ticket incluidos en el cuerpo: importe total, tipo de
-        pago, productos comprados y datos de pago. Cuerpo mal formado → 400; pago rechazado → 422;
-        saldo insuficiente → 409; error en el pago → 500.
-      security: []
+        Registra una transacción aprobada para la empresa autenticada a partir del ticket del
+        cuerpo (importe, método, productos y datos de pago). Un cuerpo mal formado devuelve 400.
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -178,17 +184,10 @@ paths:
               example:
                 code: MALFORMED_BODY
                 message: El cuerpo de la petición no es válido.
-        "409":
-          description: Saldo insuficiente para completar el pago.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-              example:
-                code: INSUFFICIENT_BALANCE
-                message: Saldo insuficiente.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "422":
-          description: El pago ha sido rechazado.
+          description: El pago ha sido rechazado y no se abona al saldo.
           content:
             application/json:
               schema:
@@ -212,11 +211,21 @@ paths:
         - Reembolsos
       summary: Solicitar un reembolso
       description: |
-        Solicita el reembolso de una transacción. La petición se acepta para su procesamiento
-        (202). Si el `transaction_id` no existe o está mal formado se responde 404.
-      security: []
+        Solicita el reembolso de una transacción de la empresa autenticada. La petición se acepta
+        para su procesamiento (202). Si el `transaction_id` no existe o no pertenece a la empresa
+        se responde 404; si ya hay una devolución pendiente, 409.
+      security:
+        - bearerAuth: []
       parameters:
         - $ref: "#/components/parameters/TransactionId"
+        - name: reason
+          in: query
+          required: false
+          description: Motivo indicado por el comercio al solicitar la devolución.
+          schema:
+            type: string
+            maxLength: 200
+          example: El cliente solicita devolver los artículos del pedido.
       responses:
         "202":
           description: Todo correcto; solicitud de reembolso aceptada para procesamiento.
@@ -224,6 +233,24 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/RefundRequestResponse"
+        "409":
+          description: Ya existe una devolución pendiente para esa transacción.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: REFUND_ALREADY_PENDING
+                message: Ya existe una devolución pendiente para esa transacción.
+        "400":
+          description: El pago no está aprobado y no se puede devolver.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: PAYMENT_NOT_REFUNDABLE
+                message: Solo se pueden devolver pagos aprobados.
         "404":
           description: El `transaction_id` no existe o está mal formado.
           content:
@@ -242,18 +269,24 @@ paths:
       security:
         - bearerAuth: []
       parameters:
-        - $ref: "#/components/parameters/TransactionId"
+        - $ref: "#/components/parameters/RefundId"
       responses:
         "200":
-          description: Todo correcto; reembolso aceptado.
+          description: Todo correcto; reembolso aceptado y saldo descontado.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/RefundActionResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
-        "500":
-          $ref: "#/components/responses/InternalServerError"
+        "404":
+          description: La devolución no existe o no pertenece a la empresa autenticada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   /refunds/reject:
     post:
@@ -263,7 +296,7 @@ paths:
       security:
         - bearerAuth: []
       parameters:
-        - $ref: "#/components/parameters/TransactionId"
+        - $ref: "#/components/parameters/RefundId"
       responses:
         "200":
           description: Todo correcto; reembolso rechazado.
@@ -271,10 +304,16 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/RefundActionResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
-        "500":
-          $ref: "#/components/responses/InternalServerError"
+        "404":
+          description: La devolución no existe o no pertenece a la empresa autenticada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   /refunds:
     get:
@@ -303,16 +342,22 @@ paths:
       description: Operación restringida al rol de administrador.
       x-required-role: admin
       security:
-        - adminAuth: []
-      parameters:
-        - $ref: "#/components/parameters/CompanyName"
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompanyCreateRequest"
       responses:
         "200":
-          description: Todo correcto; empresa añadida.
+          description: Todo correcto; empresa y cuenta de acceso creadas.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Company"
+                $ref: "#/components/schemas/CompanyCreated"
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "403":
           $ref: "#/components/responses/Forbidden"
 
@@ -320,35 +365,73 @@ paths:
     delete:
       tags:
         - Empresas
-      summary: Eliminar una empresa (sólo administrador)
-      description: Operación restringida al rol de administrador.
+      summary: Dar de baja una empresa (sólo administrador)
+      description: |
+        Baja lógica: la empresa deja de estar activa pero conserva su histórico.
+        Operación restringida al rol de administrador.
       x-required-role: admin
       security:
-        - adminAuth: []
+        - bearerAuth: []
       parameters:
         - $ref: "#/components/parameters/CompanyId"
       responses:
         "200":
-          description: Todo correcto; empresa eliminada.
+          description: Todo correcto; empresa dada de baja.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Message"
-              example:
-                message: Empresa eliminada correctamente.
+                $ref: "#/components/schemas/Company"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "404":
+          description: El `id` no existe o está mal formado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: COMPANY_NOT_FOUND
+                message: La empresa indicada no existe o su identificador no es válido.
+
+  /companies/reactivate:
+    put:
+      tags:
+        - Empresas
+      summary: Reactivar una empresa dada de baja (sólo administrador)
+      description: Operación restringida al rol de administrador.
+      x-required-role: admin
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CompanyId"
+      responses:
+        "200":
+          description: Todo correcto; empresa reactivada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Company"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: El `id` no existe o está mal formado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: COMPANY_NOT_FOUND
+                message: La empresa indicada no existe o su identificador no es válido.
 
   /companies:
     get:
       tags:
         - Empresas
       summary: Listar todas las empresas (sólo administrador)
-      description: Requiere token Bearer y credencial de administrador.
+      description: Requiere rol administrador.
       x-required-role: admin
       security:
         - bearerAuth: []
-          adminAuth: []
       responses:
         "200":
           description: Devuelve todas las empresas.
@@ -395,14 +478,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/TicketRequest"
+              $ref: "#/components/schemas/TicketCreateRequest"
       responses:
         "200":
           description: Todo correcto; ticket añadido.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TicketMutationResponse"
+                $ref: "#/components/schemas/Ticket"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -416,7 +499,7 @@ paths:
       description: Operación restringida al rol de administrador.
       x-required-role: admin
       security:
-        - adminAuth: []
+        - bearerAuth: []
       parameters:
         - $ref: "#/components/parameters/TicketId"
       responses:
@@ -430,6 +513,52 @@ paths:
                 message: Ticket eliminado correctamente.
         "403":
           $ref: "#/components/responses/Forbidden"
+
+  /ticket/message:
+    post:
+      tags:
+        - Tickets
+      summary: Añadir un mensaje a la conversación del ticket
+      description: |
+        Añade un mensaje del usuario autenticado a la conversación del ticket. El autor y su
+        rol se resuelven a partir del token. Un comercio solo puede escribir en sus tickets.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/TicketId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - message
+              properties:
+                message:
+                  type: string
+                  maxLength: 1000
+                  example: Gracias, todo aclarado.
+      responses:
+        "200":
+          description: Todo correcto; ticket con el mensaje añadido.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ticket"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: El `id` no existe o no pertenece al comercio autenticado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: TICKET_NOT_FOUND
+                message: El ticket indicado no existe o su identificador no es válido.
 
   /ticket/update:
     put:
@@ -445,14 +574,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/TicketRequest"
+              $ref: "#/components/schemas/TicketUpdateRequest"
       responses:
         "200":
           description: Todo correcto; ticket actualizado.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TicketMutationResponse"
+                $ref: "#/components/schemas/Ticket"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -472,6 +601,9 @@ paths:
       tags:
         - Tickets
       summary: Listar todos los tickets
+      description: |
+        Devuelve los tickets del usuario autenticado. El rol `comercio` solo recibe los tickets
+        de su empresa; los roles técnicos reciben todos.
       security:
         - bearerAuth: []
       responses:
@@ -486,18 +618,211 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
+  /ticket/assign:
+    put:
+      tags:
+        - Tickets
+      summary: Asignar un ticket a un técnico
+      description: |
+        El administrador puede asignar el ticket a cualquier técnico activo. Un técnico solo
+        puede asignarse el ticket a sí mismo.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/TicketId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TicketAssignRequest"
+      responses:
+        "200":
+          description: Todo correcto; ticket asignado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ticket"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: El ticket no existe o no está accesible para el usuario.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /technicians:
+    get:
+      tags:
+        - Técnicos
+      summary: Listar los técnicos (solo administrador)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Devuelve los técnicos con su actividad.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Technician"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      tags:
+        - Técnicos
+      summary: Crear un técnico (solo administrador)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TechnicianCreateRequest"
+      responses:
+        "200":
+          description: Técnico creado; incluye la contraseña inicial una sola vez.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TechnicianCreated"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /technicians/deactivate:
+    put:
+      tags:
+        - Técnicos
+      summary: Desactivar un técnico (solo administrador)
+      description: |
+        Marca al técnico como inactivo e invalida sus tokens. Un técnico inactivo no puede
+        iniciar sesión ni usar la API.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/TechnicianId"
+      responses:
+        "200":
+          description: Técnico desactivado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Technician"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: El técnico no existe.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /technicians/reactivate:
+    put:
+      tags:
+        - Técnicos
+      summary: Reactivar un técnico (solo administrador)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/TechnicianId"
+      responses:
+        "200":
+          description: Técnico reactivado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Technician"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: El técnico no existe.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /profile:
+    get:
+      tags:
+        - Perfil
+      summary: Consultar el perfil del usuario autenticado
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Perfil del usuario (y de su empresa si es un comercio).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Profile"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    put:
+      tags:
+        - Perfil
+      summary: Actualizar el perfil del usuario autenticado
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfileUpdateRequest"
+      responses:
+        "200":
+          description: Perfil actualizado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Profile"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /profile/password:
+    post:
+      tags:
+        - Perfil
+      summary: Cambiar la contraseña del usuario autenticado
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasswordChangeRequest"
+      responses:
+        "200":
+          description: Contraseña actualizada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
-      bearerFormat: JWT
-      description: Token Bearer devuelto por `POST /login`.
-    adminAuth:
-      type: apiKey
-      in: header
-      name: X-Admin-Token
-      description: Credencial exclusiva de administrador para las operaciones marcadas como «SÓLO EL ADMIN».
+      bearerFormat: Token
+      description: Token Bearer devuelto por `POST /login`. Caduca a los 3600 segundos; al caducar, la API responde 401.
 
   parameters:
     User:
@@ -512,22 +837,44 @@ components:
       name: amount
       in: query
       required: true
-      description: Importe a retirar. Debe ser un número positivo con dos decimales como máximo y no superar el saldo.
+      description: Importe a retirar. Debe ser un número positivo con dos decimales como máximo y no superar el saldo de la moneda.
       schema:
         type: number
         format: double
         minimum: 0.01
         multipleOf: 0.01
       example: 25.5
+    Currency:
+      name: currency
+      in: query
+      required: false
+      description: Moneda sobre la que se realiza la retirada. Por defecto `EUR`.
+      schema:
+        type: string
+        enum:
+          - EUR
+          - USD
+          - GBP
+        default: EUR
+      example: EUR
     TransactionId:
       name: transaction_id
       in: query
       required: true
-      description: Identificador de la transacción. Si no existe o está mal formado, la petición devuelve 404.
+      description: Identificador UUID de la transacción. Si no existe o está mal formado, la petición devuelve 404.
       schema:
         type: string
-        pattern: "^[A-Za-z0-9_-]+$"
-      example: txn_8f14e45fceea167a
+        format: uuid
+      example: 8f14e45f-ceea-467a-9c1e-2b3c4d5e6f70
+    RefundId:
+      name: id
+      in: query
+      required: true
+      description: Identificador UUID de la devolución.
+      schema:
+        type: string
+        format: uuid
+      example: 3f0b0a4e-8f0b-4f7a-9b4e-1c2d3e4f5a6b
     CompanyName:
       name: nombre
       in: query
@@ -536,25 +883,34 @@ components:
       schema:
         type: string
         minLength: 1
-      example: Comercio Ejemplo SL
+      example: Librería Horizonte
     CompanyId:
       name: id
       in: query
       required: true
-      description: Identificador de la empresa.
+      description: Identificador UUID de la empresa.
       schema:
         type: string
-        pattern: "^[A-Za-z0-9_-]+$"
-      example: emp_001
+        format: uuid
+      example: 9a7c1d2e-3f4b-5c6d-7e8f-901a2b3c4d5e
     TicketId:
       name: id
       in: query
       required: true
-      description: Identificador del ticket.
+      description: Número visible del ticket.
       schema:
         type: string
-        pattern: "^[A-Za-z0-9_-]+$"
-      example: tkt_001
+        pattern: "^[0-9]+$"
+      example: "1086"
+    TechnicianId:
+      name: id
+      in: query
+      required: true
+      description: Identificador numérico del técnico.
+      schema:
+        type: string
+        pattern: "^[0-9]+$"
+      example: "4"
 
   responses:
     BadRequest:
@@ -627,6 +983,7 @@ components:
       required:
         - token
         - token_type
+        - user
       properties:
         token:
           type: string
@@ -641,31 +998,86 @@ components:
           type: integer
           description: Validez del token en segundos.
           example: 3600
+        user:
+          $ref: "#/components/schemas/AuthUser"
+
+    AuthUser:
+      type: object
+      required:
+        - id
+        - name
+        - role
+      properties:
+        id:
+          type: string
+          example: usr_tpv01
+        name:
+          type: string
+          example: Laura Martínez
+        role:
+          type: string
+          enum:
+            - admin
+            - tecnico
+            - comercio
+          description: Rol del usuario autenticado.
+          example: tecnico
+        subtitle:
+          type: string
+          example: Técnica de soporte
+        force_password_change:
+          type: boolean
+          description: El usuario debe cambiar la contraseña al iniciar sesión.
+          example: false
+        company_id:
+          type: string
+          description: Sólo para el rol `comercio`.
+          example: emp_001
+        company_name:
+          type: string
+          description: Sólo para el rol `comercio`.
+          example: Comercio Ejemplo SL
 
     BalanceResponse:
       type: object
       required:
         - company
-        - balance
+        - balances
       properties:
         company:
           type: string
           description: Nombre de la empresa autenticada.
           example: Comercio Ejemplo SL
-        balance:
+        balances:
+          type: array
+          description: Saldo disponible por moneda.
+          items:
+            $ref: "#/components/schemas/BalanceAccount"
+
+    BalanceAccount:
+      type: object
+      required:
+        - currency
+        - amount
+      properties:
+        currency:
+          type: string
+          enum:
+            - EUR
+            - USD
+            - GBP
+          example: EUR
+        amount:
           type: number
           format: double
           multipleOf: 0.01
-          description: Saldo disponible de la empresa.
-          example: 1250.75
-        currency:
-          type: string
-          example: EUR
+          example: 1000.0
 
     WithdrawResponse:
       type: object
       required:
         - withdrawn
+        - currency
         - balance
       properties:
         withdrawn:
@@ -673,11 +1085,18 @@ components:
           format: double
           multipleOf: 0.01
           example: 25.5
+        currency:
+          type: string
+          enum:
+            - EUR
+            - USD
+            - GBP
+          example: EUR
         balance:
           type: number
           format: double
           multipleOf: 0.01
-          description: Saldo restante tras la retirada.
+          description: Saldo restante de esa moneda tras la retirada.
           example: 1225.25
 
     Product:
@@ -776,6 +1195,12 @@ components:
           format: double
           multipleOf: 0.01
           example: 12.5
+        balance:
+          type: number
+          format: double
+          multipleOf: 0.01
+          description: Saldo de la empresa en la moneda del pago tras el abono completo.
+          example: 1262.5
 
     RefundRequestResponse:
       type: object
@@ -799,21 +1224,17 @@ components:
     RefundActionResponse:
       type: object
       required:
-        - transaction_id
-        - status
+        - refund
+        - balance
       properties:
-        transaction_id:
-          type: string
-          example: txn_8f14e45fceea167a
-        status:
-          type: string
-          enum:
-            - accepted
-            - rejected
-          example: accepted
-        message:
-          type: string
-          example: Reembolso actualizado correctamente.
+        refund:
+          $ref: "#/components/schemas/Refund"
+        balance:
+          type: number
+          format: double
+          multipleOf: 0.01
+          description: Saldo restante de la moneda de la devolución.
+          example: 1207.5
 
     Refund:
       type: object
@@ -821,6 +1242,9 @@ components:
         - id
         - transaction_id
         - amount
+        - currency
+        - client
+        - reference
         - status
       properties:
         id:
@@ -829,11 +1253,26 @@ components:
         transaction_id:
           type: string
           example: txn_8f14e45fceea167a
+        reference:
+          type: string
+          description: Identificador corto del pago asociado.
+          example: P-1048
+        client:
+          type: string
+          description: Cliente que realizó el pago devuelto.
+          example: Lucía García
         amount:
           type: number
           format: double
           multipleOf: 0.01
           example: 12.5
+        currency:
+          type: string
+          enum:
+            - EUR
+            - USD
+            - GBP
+          example: EUR
         status:
           type: string
           enum:
@@ -854,102 +1293,625 @@ components:
       required:
         - id
         - nombre
+        - status
       properties:
         id:
           type: string
-          example: emp_001
+          example: 9a7c1d2e-3f4b-5c6d-7e8f-901a2b3c4d5e
         nombre:
           type: string
-          example: Comercio Ejemplo SL
-        balance:
-          type: number
-          format: double
-          multipleOf: 0.01
-          example: 1250.75
+          example: Librería Horizonte
+        status:
+          type: string
+          enum:
+            - activo
+            - dado-de-baja
+          description: Estado de la empresa. La baja es lógica y conserva el histórico.
+          example: activo
+        registered_at:
+          type: string
+          format: date-time
+          example: 2026-09-12T09:00:00Z
+        razon_social:
+          type: string
+          example: Librería Horizonte, S.L.
+        cif:
+          type: string
+          example: B12345678
+        tipo_empresa:
+          type: string
+          example: Sociedad limitada
+        actividad_economica:
+          type: string
+          example: Comercio al por menor de libros
+        direccion:
+          type: string
+          example: Calle de Alcalá, 42 · Local 2
+        codigo_postal:
+          type: string
+          example: "28014"
+        ciudad:
+          type: string
+          example: Madrid
+        provincia:
+          type: string
+          example: Madrid
+        pais:
+          type: string
+          example: España
+        telefono:
+          type: string
+          example: +34 912 345 678
+        email:
+          type: string
+          format: email
+          example: contacto@libreriahorizonte.es
+        web:
+          type: string
+          example: https://libreriahorizonte.es
 
     Payment:
       type: object
       required:
         - transaction_id
         - amount
+        - currency
+        - client
+        - reference
+        - concept
         - payment_method
         - status
+        - reason
       properties:
         transaction_id:
           type: string
-          example: txn_8f14e45fceea167a
+          example: 8f14e45f-ceea-467a-9c1e-2b3c4d5e6f70
+        client:
+          type: string
+          description: Cliente que realizó el pago (titular de la información de pago).
+          example: Lucía García
+        reference:
+          type: string
+          description: Identificador corto del pago.
+          example: P-1048
+        invoice:
+          type: string
+          nullable: true
+          description: Número de factura del comercio, si existe.
+          example: LH-F2026-1048
+        concept:
+          type: string
+          description: Concepto de la transacción.
+          example: Compra LH-F2026-1048
         amount:
           type: number
           format: double
           multipleOf: 0.01
           example: 12.5
+        currency:
+          type: string
+          enum:
+            - EUR
+            - USD
+            - GBP
+          example: EUR
         payment_method:
           type: string
           enum:
             - card
             - cash
             - transfer
+            - bizum
           example: card
         status:
           type: string
           enum:
+            - pending
             - approved
             - rejected
+            - refunded
           example: approved
-        products:
+        reason:
+          type: string
+          description: Motivo del último estado del pago.
+          example: Pago correcto
+        history:
           type: array
           items:
-            $ref: "#/components/schemas/Product"
+            $ref: "#/components/schemas/PaymentHistoryEntry"
         created_at:
           type: string
           format: date-time
           example: 2026-11-17T10:30:00Z
 
-    TicketRequest:
+    PaymentHistoryEntry:
       type: object
       required:
-        - total
-        - products
+        - id
+        - status
+        - created_at
       properties:
-        company_id:
+        id:
           type: string
-          example: emp_001
-        total:
-          type: number
-          format: double
-          multipleOf: 0.01
-          minimum: 0
-          description: Importe total del ticket.
-          example: 12.5
-        products:
-          type: array
-          minItems: 1
-          items:
-            $ref: "#/components/schemas/Product"
-        issued_at:
+          example: 4b1c2d3e-5f60-4718-9a2b-3c4d5e6f7081
+        status:
+          type: string
+          enum:
+            - pending
+            - approved
+            - rejected
+            - refunded
+          example: approved
+        reason:
+          type: string
+          example: Pago correcto
+        created_at:
           type: string
           format: date-time
           example: 2026-11-17T10:30:00Z
 
-    Ticket:
-      allOf:
-        - $ref: "#/components/schemas/TicketRequest"
-        - type: object
-          required:
-            - id
-          properties:
-            id:
-              type: string
-              example: tkt_001
+    TicketCreateRequest:
+      type: object
+      required:
+        - company_id
+        - subject
+      properties:
+        company_id:
+          type: string
+          example: emp_001
+        company_name:
+          type: string
+          description: Si se omite, se resuelve a partir de `company_id`.
+          example: Comercio Ejemplo SL
+        subject:
+          type: string
+          maxLength: 140
+          example: Pago rechazado en checkout
+        description:
+          type: string
+          example: El comercio no puede completar el cobro en el terminal.
+        status:
+          type: string
+          enum:
+            - open
+            - in_progress
+            - closed
+          default: open
+          example: open
 
-    TicketMutationResponse:
+    TicketUpdateRequest:
+      type: object
+      description: Al menos uno de los campos es obligatorio.
+      properties:
+        status:
+          type: string
+          enum:
+            - open
+            - in_progress
+            - closed
+          example: in_progress
+        reply:
+          type: string
+          description: Respuesta del equipo de soporte. Queda registrada en el historial.
+          example: Estamos revisando la pasarela con el proveedor de pagos.
+
+    TicketHistoryEntry:
       type: object
       required:
         - id
+        - at
+        - title
       properties:
         id:
           type: string
-          example: tkt_001
+          example: tkt_001-h1
+        at:
+          type: string
+          format: date-time
+          example: 2026-11-17T10:30:00Z
+        title:
+          type: string
+          example: Ticket abierto
+        description:
+          type: string
+          example: Incidencia recibida desde el portal del comercio.
+        author:
+          type: string
+          example: Equipo de soporte PLP
+
+    TicketMessage:
+      type: object
+      required:
+        - id
+        - author
+        - role
+        - message
+        - created_at
+      properties:
+        id:
+          type: string
+          example: "1086-m1"
+        author:
+          type: string
+          example: Laura Martínez
+        role:
+          type: string
+          enum:
+            - comercio
+            - tecnico
+          example: tecnico
         message:
           type: string
-          example: Ticket guardado correctamente.
+          example: El abono tarda entre 2 y 5 días hábiles.
+        created_at:
+          type: string
+          format: date-time
+          example: 2026-11-17T10:05:00Z
+
+    Ticket:
+      type: object
+      required:
+        - id
+        - company_id
+        - company_name
+        - subject
+        - status
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          example: "1086"
+        company_id:
+          type: string
+          example: 9a7c1d2e-3f4b-5c6d-7e8f-901a2b3c4d5e
+        company_name:
+          type: string
+          example: Librería Horizonte
+        subject:
+          type: string
+          example: Pago rechazado en checkout
+        description:
+          type: string
+          example: El comercio no puede completar el cobro en el terminal.
+        status:
+          type: string
+          enum:
+            - open
+            - in_progress
+            - closed
+          example: open
+        reply:
+          type: string
+          example: ""
+        created_at:
+          type: string
+          format: date-time
+          example: 2026-11-17T10:30:00Z
+        updated_at:
+          type: string
+          format: date-time
+          example: 2026-11-17T10:30:00Z
+        history:
+          type: array
+          items:
+            $ref: "#/components/schemas/TicketHistoryEntry"
+        messages:
+          type: array
+          description: Conversación entre el comercio y el equipo de soporte.
+          items:
+            $ref: "#/components/schemas/TicketMessage"
+        assignee:
+          allOf:
+            - $ref: "#/components/schemas/TicketAssignee"
+          nullable: true
+
+    TicketAssignee:
+      type: object
+      required:
+        - id
+        - name
+      properties:
+        id:
+          type: string
+          example: "3"
+        name:
+          type: string
+          example: Laura Martínez
+
+    TicketAssignRequest:
+      type: object
+      properties:
+        technician_id:
+          type: string
+          description: Identificador del técnico (solo administrador).
+          example: "4"
+        assign_to_me:
+          type: boolean
+          description: Asigna el ticket al usuario autenticado.
+          example: true
+        unassign:
+          type: boolean
+          description: Retira el responsable actual. El técnico solo puede desasignarse sus propios tickets.
+          example: false
+
+    TechnicianActivity:
+      type: object
+      properties:
+        assigned:
+          type: integer
+          example: 24
+        open:
+          type: integer
+          example: 8
+        in_progress:
+          type: integer
+          example: 8
+        closed:
+          type: integer
+          example: 16
+
+    Technician:
+      type: object
+      required:
+        - id
+        - name
+        - email
+        - username
+        - role
+        - status
+      properties:
+        id:
+          type: string
+          example: "4"
+        name:
+          type: string
+          example: Carlos Ruiz
+        email:
+          type: string
+          format: email
+          example: carlos.ruiz@plp.es
+        username:
+          type: string
+          example: cruiz
+        role:
+          type: string
+          enum:
+            - tecnico
+          example: tecnico
+        status:
+          type: string
+          enum:
+            - Activo
+            - Inactivo
+          example: Activo
+        activity:
+          $ref: "#/components/schemas/TechnicianActivity"
+
+    TechnicianCreated:
+      allOf:
+        - $ref: "#/components/schemas/Technician"
+        - type: object
+          required:
+            - password
+          properties:
+            password:
+              type: string
+              description: Contraseña inicial; solo se devuelve al crear el técnico.
+              example: PLP!Ana2026#
+
+    TechnicianCreateRequest:
+      type: object
+      required:
+        - name
+        - email
+        - username
+        - password
+      properties:
+        name:
+          type: string
+          example: Ana López
+        email:
+          type: string
+          format: email
+          example: ana.lopez@plp.es
+        username:
+          type: string
+          example: alopez
+        password:
+          type: string
+          minLength: 8
+          example: PLP!Ana2026#
+        force_change:
+          type: boolean
+          default: true
+          example: true
+
+    Profile:
+      type: object
+      required:
+        - id
+        - name
+        - email
+        - username
+        - role
+        - status
+      properties:
+        id:
+          type: string
+          example: "3"
+        name:
+          type: string
+          example: Laura Martínez
+        email:
+          type: string
+          format: email
+          example: laura.martinez@plp.es
+        username:
+          type: string
+          example: lmartinez
+        role:
+          type: string
+          enum:
+            - admin
+            - tecnico
+            - comercio
+          example: tecnico
+        status:
+          type: string
+          enum:
+            - Activo
+            - Inactivo
+          example: Activo
+        company:
+          allOf:
+            - $ref: "#/components/schemas/Company"
+          nullable: true
+        activity:
+          allOf:
+            - $ref: "#/components/schemas/TechnicianActivity"
+          nullable: true
+        force_password_change:
+          type: boolean
+          example: false
+
+    ProfileUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          example: Laura M. Martínez
+        email:
+          type: string
+          format: email
+          example: laura@plp.es
+        nombre:
+          type: string
+          example: Librería Horizonte Centro
+        razon_social:
+          type: string
+        cif:
+          type: string
+        tipo_empresa:
+          type: string
+        actividad_economica:
+          type: string
+        direccion:
+          type: string
+        codigo_postal:
+          type: string
+        ciudad:
+          type: string
+        provincia:
+          type: string
+        pais:
+          type: string
+        telefono:
+          type: string
+        web:
+          type: string
+
+    PasswordChangeRequest:
+      type: object
+      required:
+        - current_password
+        - new_password
+      properties:
+        current_password:
+          type: string
+          format: password
+          example: comercio
+        new_password:
+          type: string
+          format: password
+          minLength: 8
+          example: NuevaClave123
+
+    CompanyCreateRequest:
+      type: object
+      required:
+        - nombre
+        - razon_social
+        - cif
+        - tipo_empresa
+        - actividad_economica
+        - direccion
+        - codigo_postal
+        - ciudad
+        - provincia
+        - pais
+        - telefono
+        - email
+        - username
+        - password
+      properties:
+        nombre:
+          type: string
+          example: Librería Horizonte
+        razon_social:
+          type: string
+          example: Librería Horizonte, S.L.
+        cif:
+          type: string
+          example: B12345678
+        tipo_empresa:
+          type: string
+          example: Sociedad limitada
+        actividad_economica:
+          type: string
+          example: Comercio al por menor de libros
+        direccion:
+          type: string
+          example: Calle de Alcalá, 42 · Local 2
+        codigo_postal:
+          type: string
+          example: "28014"
+        ciudad:
+          type: string
+          example: Madrid
+        provincia:
+          type: string
+          example: Madrid
+        pais:
+          type: string
+          example: España
+        telefono:
+          type: string
+          example: +34 912 345 678
+        email:
+          type: string
+          format: email
+          example: contacto@libreriahorizonte.es
+        web:
+          type: string
+          example: https://libreriahorizonte.es
+        username:
+          type: string
+          description: Usuario de acceso al portal del comercio.
+          example: libreriahorizonte
+        password:
+          type: string
+          minLength: 8
+          description: Contraseña inicial del comercio.
+          example: PLP!Libreria2026#
+        force_change:
+          type: boolean
+          default: true
+          description: Obliga a cambiar la contraseña en el primer acceso.
+          example: true
+
+    CompanyCreated:
+      allOf:
+        - $ref: "#/components/schemas/Company"
+        - type: object
+          required:
+            - username
+            - password
+          properties:
+            username:
+              type: string
+              example: libreriahorizonte
+            password:
+              type: string
+              description: Contraseña inicial; solo se devuelve al crear el comercio.
+              example: PLP!Libreria2026#

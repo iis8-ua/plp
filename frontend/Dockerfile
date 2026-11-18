@@ -2,6 +2,8 @@ FROM node:22-alpine AS build
 
 WORKDIR /app
 
+ENV VITE_API_BASE_URL=/api
+
 COPY package.json package-lock.json ./
 RUN npm ci
 

@@ -1,0 +1,99 @@
+@import './tokens.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-app font-sans text-ink;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  p {
+    margin: 0;
+  }
+
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--plp-color-brand-700);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: var(--plp-color-brand-200);
+    color: var(--plp-color-brand-900);
+  }
+}
+
+@layer components {
+  .plp-card {
+    @apply rounded-lg border border-line bg-surface;
+  }
+
+  .plp-label {
+    @apply text-[14px] font-medium leading-[1.5] text-ink;
+  }
+
+  .plp-helper {
+    @apply text-[12px] leading-[1.5] text-muted;
+  }
+
+  .plp-micro {
+    @apply text-[10px] font-semibold uppercase leading-[1.5] tracking-[0.02em] text-muted;
+  }
+
+  .plp-link {
+    @apply text-brand-700 underline-offset-2 hover:underline;
+  }
+
+  .plp-divider {
+    @apply h-px w-full bg-line;
+  }
+
+  .plp-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: var(--plp-color-brand-200) transparent;
+  }
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+}
+
+/* Transiciones de vistas */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 150ms ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}

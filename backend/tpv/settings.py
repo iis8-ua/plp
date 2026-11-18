@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
+    'rest_framework.authtoken',
     'drf_spectacular',
     'api',
     'pagos',
@@ -160,14 +161,16 @@ MAILERS = {
 APPEND_SLASH = False
 
 
-# La autenticación se comprueba explícitamente en las vistas (Bearer / X-Admin-Token),
-# así que desactivamos los esquemas por defecto de DRF.
+# Autenticación por token de DRF enviado como `Authorization: Bearer <token>`.
+TOKEN_TTL_SECONDS = 3600
+
 REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': [],
-    'DEFAULT_PERMISSION_CLASSES': ['rest_framework.permissions.AllowAny'],
+    'DEFAULT_AUTHENTICATION_CLASSES': ['api.authentication.BearerTokenAuthentication'],
+    'DEFAULT_PERMISSION_CLASSES': ['rest_framework.permissions.IsAuthenticated'],
     'DEFAULT_RENDERER_CLASSES': ['rest_framework.renderers.JSONRenderer'],
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
     'EXCEPTION_HANDLER': 'api.exceptions.api_exception_handler',
+    'COERCE_DECIMAL_TO_STRING': False,
 }
 
 SPECTACULAR_SETTINGS = {

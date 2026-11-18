@@ -1,0 +1,48 @@
+:root {
+  --plp-color-brand-900: #1e0f52;
+  --plp-color-brand-800: #2d205c;
+  --plp-color-brand-700: #321a83;
+  --plp-color-brand-600: #4d3d7e;
+  --plp-color-brand-400: #7767a4;
+  --plp-color-brand-300: #c9bfef;
+  --plp-color-brand-200: #d6ccf3;
+  --plp-color-brand-100: #ede9fa;
+  --plp-color-accent-500: #14b8a6;
+
+  --plp-color-bg: #f8fafc;
+  --plp-color-surface: #ffffff;
+  --plp-color-border: #e2e8f0;
+  --plp-color-border-soft: #f1f5f9;
+  --plp-color-text: #0f172a;
+  --plp-color-text-secondary: #475569;
+  --plp-color-text-muted: #64748b;
+
+  --plp-color-success-bg: #d1fae5;
+  --plp-color-success-border: #a7f3d0;
+  --plp-color-success-text: #047857;
+  --plp-color-warning-bg: #fef3c7;
+  --plp-color-warning-text: #b45309;
+  --plp-color-info-bg: #e0f2fe;
+  --plp-color-info-text: #0369a1;
+  --plp-color-danger-bg: #fee2e2;
+  --plp-color-danger-soft: #fef2f2;
+  --plp-color-danger-border: #fecaca;
+  --plp-color-danger: #b91c1c;
+  --plp-color-danger-strong: #ef4444;
+  --plp-color-neutral-bg: #f1f5f9;
+  --plp-color-neutral-text: #475569;
+  --plp-color-overlay: rgba(15, 23, 42, 0.45);
+
+  --plp-radius-sm: 4px;
+  --plp-radius-md: 8px;
+  --plp-radius-lg: 10px;
+  --plp-radius-xl: 12px;
+  --plp-radius-pill: 14px;
+
+  --plp-font-sans: Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --plp-leading: 1.5;
+
+  --plp-sidebar-width: 224px;
+  --plp-header-height: 96px;
+  --plp-content-width: 1152px;
+}

@@ -1,8 +1,11 @@
-# Backend TPV (mocks)
+# Backend TPV
 
-Proyecto Django + Django REST Framework que implementa **sólo las rutas, la autenticación simulada y los códigos de estado** definidos en `../api/api.yaml`. La lógica de negocio sigue siendo mock; MySQL se configura para el despliegue pero los mocks todavía no consultan tablas propias.
+Proyecto Django + Django REST Framework que implementa la API descrita en `../api/api.yaml`
+sobre el modelo de datos de la app `pagos` (MySQL en despliegue, SQLite en local y tests).
 
-El proyecto (`manage.py`, `tpv/`) y la app Django con el modelo de datos (`pagos/`) están en `backend/`; la app que implementa la API mock está en `../api/`, junto a la especificación.
+- `backend/tpv/`: configuración Django.
+- `backend/pagos/`: modelo de datos (empresas, monedas, saldos, transacciones, reembolsos y tickets).
+- `../api/`: vistas, serializers, autenticación y contrato OpenAPI.
 
 ## Arrancar
 
@@ -11,10 +14,12 @@ cd backend
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+python manage.py migrate
+python manage.py seed_demo
 python manage.py runserver
 ```
 
-Tests de los códigos de estado:
+Tests:
 
 ```bash
 python manage.py test api pagos
@@ -35,34 +40,80 @@ cp .env.example .env   # cambiar las contraseñas
 docker compose up --build
 ```
 
+El contenedor ejecuta `migrate` y `seed_demo` antes de arrancar gunicorn.
+
 - API: `http://localhost:8000`
 - Frontend Vue: `http://localhost:8080`
 
-Sin `DB_ENGINE=mysql` (por ejemplo en CI o en local) Django usa SQLite. En los contenedores se activa MySQL con las variables `MYSQL_*`.
+Sin `DB_ENGINE=mysql` (por ejemplo en CI o en local) Django usa SQLite. En los contenedores se
+activa MySQL con las variables `MYSQL_*`.
 
-## Autenticación simulada
+## Autenticación
 
-| Cabecera                        | Comportamiento                                                                                                                          |
-| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `Authorization: Bearer <token>` | Válida en las rutas marcadas con Bearer en la spec. Cualquier token no vacío sirve, salvo `invalid` o `expired`, que devuelven **401**. |
-| `X-Admin-Token: <valor>`        | Obligatoria en las rutas «SÓLO EL ADMIN». Si falta, devuelve **403**. `GET /companies` exige además el Bearer.                          |
+`POST /login?user=<usuario>` con el body `{"password": "<contraseña>"}` devuelve un token de DRF
+y el usuario con su rol. El resto de peticiones usan `Authorization: Bearer <token>`. El token
+caduca a los **3600 segundos**; al caducar o al desactivar al usuario, la API responde **401**.
 
-`POST /login?user=tpv01` con body `{"password": "secret"}` devuelve un token mock.
+| Usuario | Contraseña | Rol | Empresa |
+| --- | --- | --- | --- |
+| `admin` | `admin` | `admin` | — |
+| `tpv01` | `secret` | `tecnico` | — |
+| `comercio` | `comercio` | `comercio` | Librería Horizonte |
+| `cruiz`, `dtorres`, `egarcia`, `msanchez`, `promero` | `tecnico123` | `tecnico` | — |
 
-## Disparadores de error
+Los roles se guardan en `pagos.PerfilUsuario`. Las rutas de administrador (`/companies*`,
+`/technicians*`) comprueban el rol del token; ya no existe `X-Admin-Token`.
 
-| Endpoint                             | Código | Cómo provocarlo                                                        |
-| ------------------------------------ | ------ | ---------------------------------------------------------------------- |
-| `/login`                             | 400    | Sin `?user=`                                                           |
-| `/login`                             | 401    | Usuario o password incorrectos                                         |
-| `/logout`                            | 500    | Cabecera `X-Mock-Error: true`                                          |
-| `/withdraw`                          | 400    | Sin `amount`, no numérico, o `amount > 1000`                           |
-| `/pay`                               | 400    | Body ausente/inválido (falta algún campo obligatorio)                  |
-| `/pay`                               | 409    | `total_amount > 1000`                                                  |
-| `/pay`                               | 422    | `payment_data.card_number` terminado en `0002`                         |
-| `/pay`                               | 500    | `payment_data.card_number` terminado en `0005`, o `X-Mock-Error: true` |
-| `/refunds/request`                   | 404    | `transaction_id` mal formado o distinto de `txn_001` / `txn_002`       |
-| `/refunds/accept`, `/refunds/reject` | 500    | Cabecera `X-Mock-Error: true`                                          |
-| `/ticket/update`                     | 404    | `id` mal formado o distinto de `tkt_001` / `tkt_002`                   |
+`POST /logout` invalida el token de la sesión.
 
-El resto de las combinaciones devuelven el código de éxito de la spec (`200`, `202`).
+## Modelo y datos
+
+- **Empresas**: `estado` (`activo` / `dado-de-baja`); la baja es lógica y se puede reactivar.
+- **Saldos**: una fila por empresa y moneda (`EUR`, `USD`, `GBP`). `POST /withdraw` descuenta de la
+  moneda indicada.
+- **Pagos**: `Transaccion` + `InformacionPago` + `Tarjeta`/`CuentaBancaria`, con `referencia`,
+  `num_factura`, `motivo`, moneda, comisión (sin aplicar) y estado (`PENDIENTE`, `APROBADA`,
+  `RECHAZADA`, `REEMBOLSADA`). Cada cambio de estado se guarda en `TransaccionHistorial` con su
+  motivo. `POST /pay` abona el importe completo al saldo si el pago se aprueba.
+- **Devoluciones**: `Reembolso` sobre una transacción, con `motivo` y estado. Solo se solicitan
+  sobre pagos aprobados. Aceptar descuenta el importe del saldo de la empresa; rechazar solo cambia
+  el estado.
+- **Tickets**: `Ticket` + `TicketMensaje` + `TicketHistorial`. El comercio solo accede a los tickets
+  de su empresa; el equipo técnico ve todos. Cada ticket tiene un `tecnico` asignado (opcional);
+  el administrador puede asignar a cualquier técnico, el técnico puede asignarse el ticket y
+  desasignarse los suyos.
+- **Empresas**: datos fiscales y de contacto (`razon_social`, `cif`, `tipo_empresa`,
+  `actividad_economica`, dirección, contacto y web) además del nombre y estado. El alta crea
+  también la cuenta de acceso del comercio (usuario, contraseña inicial y rol `comercio`).
+- **Técnicos**: usuarios con rol `tecnico`; el administrador puede listarlos, crear nuevos accesos,
+  desactivarlos (se invalidan sus tokens) y reactivarlos desde `/technicians`. La contraseña
+  inicial solo se devuelve en la creación.
+- **Perfil**: `/profile` devuelve y actualiza los datos del usuario (o de la empresa si es un
+  comercio) y `/profile/password` cambia la contraseña.
+
+`seed_demo` es idempotente y crea los usuarios, empresas, saldos, 7 pagos, 5 devoluciones y
+14 tickets de ejemplo (repartidos entre los técnicos).
+
+## Códigos de error habituales
+
+| Endpoint | Código | Caso |
+| --- | --- | --- |
+| `/login` | 400 | Falta `?user=` |
+| `/login` | 401 | Credenciales incorrectas o usuario desactivado |
+| Cualquier ruta protegida | 401 | Token ausente, inválido o caducado |
+| `/balance`, `/payments`, `/refunds` | 403 | Usuario sin empresa (admin/técnico) |
+| `/withdraw` | 400 | Importe no válido, moneda sin saldo o saldo insuficiente |
+| `/pay` | 422 | Pago rechazado (tarjeta terminada en `0002`) |
+| `/refunds/request` | 404 | Transacción inexistente o de otra empresa |
+| `/refunds/request` | 400 | El pago no está aprobado (`PAYMENT_NOT_REFUNDABLE`) |
+| `/refunds/request` | 409 | Ya hay una devolución pendiente |
+| `/refunds/accept` | 400 | Saldo insuficiente o devolución ya resuelta |
+| `/refunds/accept`, `/refunds/reject` | 404 | Devolución inexistente o de otra empresa |
+| `/companies*` | 403 | El usuario no es administrador |
+| `/technicians` | 403 | El usuario no es administrador |
+| `/technicians/deactivate`, `/reactivate` | 404 | El técnico no existe |
+| `/technicians` (POST) | 400 | Usuario o correo duplicado, o contraseña corta |
+| `/ticket/update` | 403 | El usuario es un comercio |
+| `/ticket/message` | 404 | Ticket inexistente o de otra empresa |
+| `/ticket/assign` | 400/403 | Técnico inexistente o usuario sin permisos |
+| `/profile/password` | 400 | Contraseña actual incorrecta o nueva demasiado corta |
