@@ -2,7 +2,7 @@
 
 Proyecto Django + Django REST Framework que implementa las rutas, la autenticación simulada, los códigos de estado y **estado en memoria** (tickets y empresas mutables) definidos en `../api/api.yaml`. No hay persistencia: al reiniciar el proceso se vuelve a los datos iniciales.
 
-El proyecto (`manage.py`, `tpv/`) sigue en `backend/`; la app Django que implementa la API está en `../api/`, junto a la especificación.
+El proyecto (`manage.py`, `tpv/`) y la app Django con el modelo de datos (`pagos/`) están en `backend/`; la app que implementa la API mock está en `../api/`, junto a la especificación.
 
 ## Arrancar
 
@@ -17,7 +17,7 @@ python manage.py runserver
 Tests de los códigos de estado:
 
 ```bash
-python manage.py test api
+python manage.py test api pagos
 ```
 
 Verificación del esquema generado desde el código:
