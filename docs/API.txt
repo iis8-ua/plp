@@ -170,7 +170,7 @@ Cabecera Bearer. Solo tecnico/admin.
 Body: { status?: "open|in_progress|closed", reply? }
 = 200: Ticket actualizado (añade mensaje e historial si hay respuesta)
 = 400: sin estado ni respuesta
-= 403: comercio
+= 403: comercio o técnico sin el ticket asignado
 = 404: ticket inexistente
 
 PUT /ticket/assign?id=<número>
