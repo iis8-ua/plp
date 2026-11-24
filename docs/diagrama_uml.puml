@@ -1,0 +1,199 @@
+@startuml PLP_Modelo_Datos
+title PLP · Modelo de datos (TPV)
+
+hide circle
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+skinparam shadowing false
+skinparam defaultFontName "Segoe UI"
+skinparam class {
+  BackgroundColor #FFFFFF
+  BorderColor #374151
+  ArrowColor #374151
+  FontColor #111827
+}
+skinparam note {
+  BackgroundColor #F9FAFB
+  BorderColor #D1D5DB
+}
+
+class METODOS_PAGO {
+  + ID : CHAR(32) {PK}
+  + NOMBRE : VARCHAR(30) {UQ}
+}
+
+class MONEDAS {
+  + CODIGO : CHAR(3) {PK}
+  + NOMBRE : VARCHAR(30)
+  + DECIMALES : TINYINT = 2
+}
+
+class EMPRESAS {
+  + ID : CHAR(32) {PK}
+  + NOMBRE : VARCHAR(100)
+  + FECHA_REGISTRO : DATETIME(6)
+  + ESTADO : VARCHAR(12) = activo
+  + RAZON_SOCIAL : VARCHAR(150)
+  + CIF : VARCHAR(20)
+  + TIPO_EMPRESA : VARCHAR(40)
+  + ACTIVIDAD_ECONOMICA : VARCHAR(150)
+  + DIRECCION : VARCHAR(200)
+  + CODIGO_POSTAL : VARCHAR(10)
+  + CIUDAD : VARCHAR(80)
+  + PROVINCIA : VARCHAR(80)
+  + PAIS : VARCHAR(80) = España
+  + TELEFONO : VARCHAR(30)
+  + EMAIL : VARCHAR(150)
+  + WEB : VARCHAR(200)
+}
+
+class INFORMACION_PAGOS {
+  + ID : CHAR(32) {PK}
+  + METODO_ID : CHAR(32) {FK}
+  + TITULAR : VARCHAR(100)
+}
+
+class TARJETAS {
+  + ID : CHAR(32) {PK, FK → INFORMACION_PAGOS, ON DELETE CASCADE}
+  + MARCA : VARCHAR(20)
+  + ULTIMOS4 : CHAR(4)
+  + CADUCIDAD : CHAR(5)
+  + TOKEN : VARCHAR(64) {UQ}
+}
+
+class CUENTAS_BANCARIAS {
+  + ID : CHAR(32) {PK, FK → INFORMACION_PAGOS, ON DELETE CASCADE}
+  + IBAN : VARCHAR(34)
+}
+
+class TRANSACCIONES {
+  + ID : CHAR(32) {PK}
+  + RECEPTOR_ID : CHAR(32) {FK}
+  + INFORMACION_ID : CHAR(32) {FK, UQ}
+  + CONCEPTO : VARCHAR(255)
+  + CANTIDAD : DECIMAL(12,2) > 0
+  + COMISION : DECIMAL(12,2) = 0; 0..CANTIDAD
+  + MONEDA : CHAR(3) {FK}
+  + ESTADO : VARCHAR(11) = PENDIENTE
+  + FECHA : DATETIME(6)
+  + NUM_FACTURA : VARCHAR(30) NULL
+  + REFERENCIA : VARCHAR(20) NULL
+  + MOTIVO : VARCHAR(255)
+  + UQ_TX_FACTURA (RECEPTOR_ID, NUM_FACTURA)
+}
+
+class TRANSACCION_HISTORIAL {
+  + ID : CHAR(32) {PK}
+  + TRANSACCION_ID : CHAR(32) {FK, ON DELETE CASCADE}
+  + ESTADO : VARCHAR(11)
+  + MOTIVO : VARCHAR(255) = ""
+  + FECHA : DATETIME(6)
+}
+
+class REEMBOLSOS {
+  + ID : CHAR(32) {PK}
+  + TRANSACCION_ID : CHAR(32) {FK}
+  + CANTIDAD : DECIMAL(12,2) > 0
+  + FECHA : DATETIME(6)
+  + MOTIVO : VARCHAR(255) NULL
+  + ESTADO : VARCHAR(9) = PENDIENTE
+}
+
+class SALDOS_EMPRESAS {
+  + EMPRESA_ID : CHAR(32) {PK, FK}
+  + MONEDA : CHAR(3) {PK, FK}
+  + SALDO : DECIMAL(12,2) >= 0
+}
+
+class "auth_user (Django)" as auth_user {
+  + ID : BIGINT {PK, AI}
+  + USERNAME : VARCHAR(150) {UQ}
+  + PASSWORD : VARCHAR(128)
+  + FIRST_NAME : VARCHAR(150)
+  + LAST_NAME : VARCHAR(150)
+  + EMAIL : VARCHAR(254)
+  + IS_ACTIVE : TINYINT(1) = 1
+  + IS_STAFF : TINYINT(1) = 0
+  + IS_SUPERUSER : TINYINT(1) = 0
+  + LAST_LOGIN : DATETIME(6) NULL
+  + DATE_JOINED : DATETIME(6)
+}
+
+note right of auth_user
+  Tabla gestionada por Django.
+  Se omiten auth_user_groups y
+  auth_user_user_permissions.
+end note
+
+class PERFILES_USUARIO {
+  + ID : BIGINT {PK, AI}
+  + USUARIO_ID : BIGINT {FK, UQ, ON DELETE CASCADE}
+  + ROL : VARCHAR(10) = tecnico
+  + EMPRESA_ID : CHAR(32) {FK, NULL}
+  + FORCE_PASSWORD_CHANGE : TINYINT(1) = 0
+}
+
+class TICKETS {
+  + ID : CHAR(32) {PK}
+  + NUMERO : INT UNSIGNED {UQ}
+  + EMPRESA_ID : CHAR(32) {FK}
+  + ASUNTO : VARCHAR(140)
+  + DESCRIPCION : LONGTEXT
+  + ESTADO : VARCHAR(10) = ABIERTO
+  + TECNICO_ID : BIGINT {FK, NULL, ON DELETE SET NULL}
+  + CREADO : DATETIME(6)
+  + ACTUALIZADO : DATETIME(6)
+}
+
+class TICKET_MENSAJES {
+  + ID : CHAR(32) {PK}
+  + TICKET_ID : CHAR(32) {FK, ON DELETE CASCADE}
+  + AUTOR_ID : BIGINT {FK}
+  + ROL : VARCHAR(8)
+  + MENSAJE : LONGTEXT
+  + CREADO : DATETIME(6)
+}
+
+class TICKET_HISTORIAL {
+  + ID : CHAR(32) {PK}
+  + TICKET_ID : CHAR(32) {FK, ON DELETE CASCADE}
+  + TITULO : VARCHAR(100)
+  + DESCRIPCION : LONGTEXT
+  + AUTOR_ID : BIGINT {FK, NULL}
+  + FECHA : DATETIME(6)
+}
+
+class "authtoken_token (DRF)" as authtoken_token {
+  + KEY : VARCHAR(40) {PK}
+  + USER_ID : BIGINT {FK, UQ, ON DELETE CASCADE}
+  + CREATED : DATETIME(6)
+}
+
+' ---------------------------------------------------------------- Relaciones
+
+INFORMACION_PAGOS "*" --> "1" METODOS_PAGO : método
+INFORMACION_PAGOS "1" *-- "0..1" CUENTAS_BANCARIAS : tipo cuenta
+INFORMACION_PAGOS "1" *-- "0..1" TARJETAS : tipo tarjeta
+TRANSACCIONES "1" --> "0..1" INFORMACION_PAGOS : información de pago
+TRANSACCIONES "*" --> "1" EMPRESAS : receptor
+TRANSACCIONES "*" --> "1" MONEDAS : moneda
+TRANSACCION_HISTORIAL "*" --> "1" TRANSACCIONES : historial
+REEMBOLSOS "*" --> "1" TRANSACCIONES : transacción
+SALDOS_EMPRESAS "*" --> "1" EMPRESAS : saldo por empresa
+SALDOS_EMPRESAS "*" --> "1" MONEDAS : saldo por moneda
+PERFILES_USUARIO "1" *-- "1" auth_user : perfil
+PERFILES_USUARIO "0..*" --> "0..1" EMPRESAS : empresa
+TICKETS "*" --> "1" EMPRESAS : empresa
+TICKETS "*" --> "0..1" auth_user : técnico
+TICKET_MENSAJES "*" --> "1" TICKETS : ticket
+TICKET_MENSAJES "*" --> "1" auth_user : autor
+TICKET_HISTORIAL "*" --> "1" TICKETS : ticket
+TICKET_HISTORIAL "*" --> "0..1" auth_user : autor
+authtoken_token "1" --> "1" auth_user : usuario
+
+note bottom of TRANSACCIONES
+  CHK_TX_CANTIDAD: CANTIDAD > 0
+  CHK_TX_COMISION: 0 <= COMISION <= CANTIDAD
+end note
+
+@enduml
