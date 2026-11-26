@@ -28,3 +28,10 @@ Credenciales del backend:
 | Comercio | `comercio` | `comercio` | `comercio` |
 
 Consulta [`frontend/README.md`](/frontend/README.md) y [`docs/implementacion-frontend.md`](/docs/implementacion-frontend.md).
+
+### Documentación de la API
+
+Con el frontend levantado, la documentación pública de endpoints está en:
+
+- Docker: `http://localhost:8080/docs.html`
+- Desarrollo: `http://localhost:5173/docs.html`

@@ -74,7 +74,8 @@ Los roles se guardan en `pagos.PerfilUsuario`. Las rutas de administrador (`/com
 - **Pagos**: `Transaccion` + `InformacionPago` + `Tarjeta`/`CuentaBancaria`, con `referencia`,
   `num_factura`, `motivo`, moneda, comisión (sin aplicar) y estado (`PENDIENTE`, `APROBADA`,
   `RECHAZADA`, `REEMBOLSADA`). Cada cambio de estado se guarda en `TransaccionHistorial` con su
-  motivo. `POST /pay` abona el importe completo al saldo si el pago se aprueba.
+  motivo. `POST /pay` acepta `currency` opcional (EUR por defecto) y abona el importe completo al
+  saldo de esa moneda si el pago se aprueba.
 - **Devoluciones**: `Reembolso` sobre una transacción, con `motivo` y estado. Solo se solicitan
   sobre pagos aprobados. Aceptar descuenta el importe del saldo de la empresa; rechazar solo cambia
   el estado.

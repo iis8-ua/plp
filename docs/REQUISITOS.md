@@ -76,7 +76,7 @@ La implementación actual es una **API REST/JSON** sobre Django + Django REST Fr
 | RF-17 | Estados del pago: `PENDIENTE`, `APROBADA`, `RECHAZADA`, `REEMBOLSADA`. La API los expone como `pending`, `approved`, `rejected`, `refunded`. | — | Must |
 | RF-18 | `POST /pay` crea la transacción en `PENDIENTE`, la procesa y la finaliza en `APROBADA` o `RECHAZADA` (tarjeta terminada en 0002). | `POST /pay` | Must |
 | RF-19 | El número de factura es único por comercio; puede ser nulo. | — | Must |
-| RF-20 | Multimoneda en pagos y saldos; `POST /pay` usa EUR y no acepta moneda en el cuerpo. | — | Should |
+| RF-20 | Multimoneda en pagos y saldos. `POST /pay` acepta `currency` opcional (`EUR`, `USD` o `GBP`; por defecto `EUR`) y abona en el saldo de esa moneda. | — | Should |
 | RF-21 | No se almacenan PAN ni CVV; se guarda token, últimos 4 y caducidad en tarjetas. | — | Must |
 | RF-22 | No se aplica comisión: `COMISION` queda a 0. | — | Must |
 | RF-23 | Un pago aprobado incrementa el saldo de la empresa por el importe completo. Un pago rechazado no lo modifica. | — | Must |
@@ -185,7 +185,7 @@ La implementación actual es una **API REST/JSON** sobre Django + Django REST Fr
 
 ### 7.2 Pagos y saldo
 
-- **US-08 · Pagar**: usuario con empresa; el pago pasa por `PENDIENTE` y termina en `APROBADA` (200) o `RECHAZADA` (422, tarjeta terminada en 0002). Al aprobarse se abona el importe completo al saldo; al rechazarse no se abona. 400 cuerpo inválido; sin PAN/CVV.
+- **US-08 · Pagar**: usuario con empresa; el pago pasa por `PENDIENTE` y termina en `APROBADA` (200) o `RECHAZADA` (422, tarjeta terminada en 0002). Se puede indicar `currency` (EUR por defecto; EUR/USD/GBP). Al aprobarse se abona el importe completo al saldo de esa moneda; al rechazarse no se abona. 400 cuerpo o moneda inválidos; sin PAN/CVV.
 - **US-09 · Consultar pagos**: solo los de la empresa; cliente, referencia, factura, concepto, importe, moneda, estado, método y fecha.
 - **US-10 · Consultar saldo**: array de cuentas por moneda; 403 sin empresa.
 - **US-11 · Retirar**: por moneda; 200 y descuento atómico; 400 importe/saldo.

@@ -245,7 +245,7 @@ def pay(request):
         while Transaccion.objects.filter(referencia=reference).exists():
             reference = f'P-{int(reference.split("-")[1]) + 1}'
 
-        currency = 'EUR'
+        currency = data.get('currency', 'EUR')
         tx = Transaccion.objects.create(
             receptor=company,
             informacion=info,
@@ -301,6 +301,7 @@ def pay(request):
             'transaction_id': str(tx.id),
             'status': 'approved',
             'authorized_amount': float(tx.cantidad),
+            'currency': tx.moneda_id,
             'balance': float(saldo.saldo),
         },
         status=status.HTTP_200_OK,

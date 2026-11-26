@@ -31,6 +31,9 @@ class PaymentDataSerializer(serializers.Serializer):
 
 class PaymentRequestSerializer(serializers.Serializer):
     total_amount = serializers.FloatField(min_value=0)
+    currency = serializers.ChoiceField(
+        choices=["EUR", "USD", "GBP"], required=False, default="EUR"
+    )
     payment_method = serializers.ChoiceField(choices=["card", "cash", "transfer"])
     products = ProductSerializer(many=True)
     payment_data = PaymentDataSerializer()

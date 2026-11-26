@@ -181,7 +181,8 @@ paths:
       summary: Registrar y procesar un pago
       description: |
         Registra una transacción aprobada para la empresa autenticada a partir del ticket del
-        cuerpo (importe, método, productos y datos de pago). Un cuerpo mal formado devuelve 400.
+        cuerpo (importe, moneda, método, productos y datos de pago). La moneda es `EUR` si no
+        se indica. Un cuerpo mal formado o una moneda no admitida devuelve 400.
       security:
         - bearerAuth: []
       requestBody:
@@ -1263,6 +1264,15 @@ components:
           minimum: 0
           description: Importe total del pago.
           example: 12.5
+        currency:
+          type: string
+          enum:
+            - EUR
+            - USD
+            - GBP
+          default: EUR
+          description: Moneda del pago. Por defecto `EUR`.
+          example: EUR
         payment_method:
           type: string
           enum:
@@ -1284,6 +1294,7 @@ components:
       required:
         - transaction_id
         - status
+        - currency
       properties:
         transaction_id:
           type: string
@@ -1298,6 +1309,13 @@ components:
           format: double
           multipleOf: 0.01
           example: 12.5
+        currency:
+          type: string
+          enum:
+            - EUR
+            - USD
+            - GBP
+          example: EUR
         balance:
           type: number
           format: double

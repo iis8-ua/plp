@@ -26,6 +26,13 @@ npm run dev
 
 Cada portal valida que el rol del usuario coincida: una cuenta de comercio no puede entrar por el acceso técnico y viceversa.
 
+### Documentación de la API
+
+La documentación pública de los endpoints está en `/docs.html`:
+
+- Docker: `http://localhost:8080/docs.html`
+- Desarrollo: `http://localhost:5173/docs.html`
+
 ### Scripts
 
 | Comando | Descripción |

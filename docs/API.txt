@@ -51,20 +51,21 @@ PAGOS
 POST /pay
 Cabecera Bearer. Requiere empresa.
 Body: {
-  total_amount, payment_method: "card|cash|transfer",
+  total_amount, currency: "EUR|USD|GBP" (opcional, EUR por defecto),
+  payment_method: "card|cash|transfer",
   products: [ { product_id, name, quantity, unit_price } ],
   payment_data: { card_number?, expiry?, cvv?, holder?, iban? }
 }
-= 200: { transaction_id, status: "approved", authorized_amount, balance }
-= 400: cuerpo mal formado
+= 200: { transaction_id, status: "approved", authorized_amount, currency, balance }
+= 400: cuerpo mal formado o moneda no admitida
 = 403: usuario sin empresa
 = 422: pago rechazado (tarjeta terminada en 0002); no se abona al saldo
 
 Notas:
 - El pago se crea en PENDIENTE, se procesa y termina en APROBADA o RECHAZADA.
-- Al aprobarse se abona el importe completo al saldo (sin comisión).
+- Al aprobarse se abona el importe completo al saldo de la moneda indicada (sin comisión).
 - Se guarda un evento de historial por cada cambio de estado y el motivo.
-- La moneda es EUR.
+- La moneda es opcional: EUR, USD o GBP; por defecto EUR.
 - No se almacenan PAN completo ni CVV.
 
 GET /payments

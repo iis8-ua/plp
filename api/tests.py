@@ -181,6 +181,7 @@ class ApiTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data['status'], 'approved')
         self.assertEqual(response.data['authorized_amount'], 12.5)
+        self.assertEqual(response.data['currency'], 'EUR')
         self.assertEqual(response.data['balance'], 1262.5)
         self.assertNotIn('commission', response.data)
         self.assertEqual(Transaccion.objects.count(), before + 1)
@@ -198,6 +199,59 @@ class ApiTests(APITestCase):
             empresa__nombre='Librería Horizonte', moneda_id='EUR'
         )
         self.assertEqual(saldo.saldo, Decimal('1262.50'))
+
+    def test_pay_in_usd_credits_usd_balance(self):
+        self.login('comercio')
+
+        response = self.client.post(
+            '/pay',
+            {
+                'total_amount': 50,
+                'currency': 'USD',
+                'payment_method': 'card',
+                'products': [
+                    {'product_id': 'P-2', 'name': 'Libro', 'quantity': 1, 'unit_price': 50}
+                ],
+                'payment_data': {'card_number': '4111111111111111', 'holder': 'Ana Pérez'},
+            },
+            format='json',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['currency'], 'USD')
+        self.assertEqual(response.data['balance'], 470.0)
+
+        tx = Transaccion.objects.get(id=response.data['transaction_id'])
+        self.assertEqual(tx.moneda_id, 'USD')
+        self.assertEqual(tx.cantidad, Decimal('50.00'))
+
+        usd = SaldoEmpresa.objects.get(
+            empresa__nombre='Librería Horizonte', moneda_id='USD'
+        )
+        eur = SaldoEmpresa.objects.get(
+            empresa__nombre='Librería Horizonte', moneda_id='EUR'
+        )
+        self.assertEqual(usd.saldo, Decimal('470.00'))
+        self.assertEqual(eur.saldo, Decimal('1250.00'))
+
+    def test_pay_rejects_invalid_currency(self):
+        self.login('comercio')
+        before = Transaccion.objects.count()
+
+        response = self.client.post(
+            '/pay',
+            {
+                'total_amount': 10,
+                'currency': 'CHF',
+                'payment_method': 'card',
+                'products': [
+                    {'product_id': 'P-1', 'name': 'Café', 'quantity': 1, 'unit_price': 10}
+                ],
+                'payment_data': {'card_number': '4111111111111111'},
+            },
+            format='json',
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(Transaccion.objects.count(), before)
 
     def test_pay_rejected_does_not_credit_balance(self):
         self.login('comercio')
