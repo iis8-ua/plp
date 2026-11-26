@@ -34,7 +34,7 @@ if str(REPO_DIR) not in sys.path:
 SECRET_KEY = 'django-insecure-l^12-e^v+7d=s_aq7$ob40$u%^s_$n7uwbg_mypxgiwaa)2yb7'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
 ALLOWED_HOSTS = ['*']
 
