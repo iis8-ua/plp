@@ -1,0 +1,230 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>API PLP · TPV — Documentación</title>
+<style>:root{--ink:#1d1a2b;--mu:#5d5a6e;--ac:#321A83;--bg:#fbfaff;--ln:#dcd8ee;--cd:#fff;--cb:#f1eefb}
+@media(prefers-color-scheme:dark){:root{--ink:#ebe8f7;--mu:#a9a5c0;--ac:#a99bf0;--bg:#141220;--ln:#322e4a;--cd:#1c1930;--cb:#241f3d}}
+*{box-sizing:border-box}body{margin:0;font:16px/1.6 Georgia,serif;color:var(--ink);background:var(--bg);display:grid;grid-template-columns:220px minmax(0,1fr)}
+nav{position:sticky;top:0;height:100vh;padding:24px 18px;border-right:1px solid var(--ln);display:flex;flex-direction:column;gap:6px;font:15px system-ui,sans-serif}nav b{color:var(--ac);margin-bottom:8px}nav a{color:var(--mu);text-decoration:none}nav a:hover,nav a:focus-visible{color:var(--ac)}
+main{padding:40px clamp(18px,5vw,64px);max-width:980px}h1{font-size:2.3rem;margin:0 0 8px;color:var(--ac)}h2{margin-top:56px;padding-top:12px;border-top:3px solid var(--ac)}h3{margin:36px 0 4px;font:600 1.05rem system-ui,sans-serif;display:flex;gap:10px;align-items:center;flex-wrap:wrap}h4{font:600 .85rem system-ui,sans-serif;color:var(--mu);margin:18px 0 6px}
+code,pre{font:13.5px/1.5 ui-monospace,Menlo,monospace}pre{background:var(--cb);border:1px solid var(--ln);padding:12px;overflow-x:auto;border-radius:6px;margin:0}
+.m{font:700 .75rem system-ui;padding:3px 8px;border-radius:4px;color:#fff;background:#555}.GET{background:#1b7f5a}.POST{background:#321A83}.PUT{background:#a8620f}.DELETE{background:#b3261e}
+article{background:var(--cd);border:1px solid var(--ln);border-radius:8px;padding:6px 20px 20px;margin-top:20px}.au,.lead{color:var(--mu);margin:4px 0}table{width:100%;border-collapse:collapse;font:14px system-ui,sans-serif;display:block;overflow-x:auto}th,td{text-align:left;padding:6px 10px;border-bottom:1px solid var(--ln);vertical-align:top}
+.box{background:var(--cb);border-left:4px solid var(--ac);padding:4px 16px;margin:16px 0}.todo{background:#ffe9a8;color:#3a2e00;padding:0 4px}
+@media(max-width:760px){body{display:block}nav{position:static;height:auto;flex-direction:row;flex-wrap:wrap;border:0;border-bottom:1px solid var(--ln)}}</style></head><body>
+<nav><b>API PLP · TPV</b><a href="#info">Información</a><a href="#auth">Autenticación</a><a href="#errores">Errores comunes</a><a href="#Sesión">Sesión</a><a href="#Caja">Caja</a><a href="#Reembolsos">Reembolsos</a><a href="#Pagos">Pagos</a><a href="#Tickets">Tickets</a><a href="#Perfil">Perfil</a></nav>
+<main><h1>API PLP · TPV</h1><p class="lead">Ingeniería Web · Curso 2026-27 · Versión 1.0.0</p>
+<section id="info"><h2>Información del proyecto</h2>
+<ul><li><b>Proyecto:</b> PLP (Pasa la Pasta) — TPV virtual</li><li><b>Grupo de prácticas:</b> G05</li>
+<li><b>Contacto:</b> Danil Launov · soporte.pasalapasta@gmail.com · 624 622 342</li>
+<li><b>URL base:</b> <code>http://localhost:8000</code> (la API corre por ahora en local; cuando se despliegue se indicará aquí la URL pública)</li>
+<li><b>Repositorio:</b> <a href="https://github.com/iis8-ua/plp">github.com/iis8-ua/plp</a></li></ul>
+<h3>Qué ofrece la API</h3><p>API REST (JSON) del TPV virtual PLP para que otros proyectos interoperen con él: cobrar pagos, consultar saldo y retirar fondos, gestionar reembolsos, consultar pagos, y abrir tickets de soporte. Los importes llevan dos decimales y los pagos pueden hacerse en EUR, USD o GBP (por defecto EUR) y cada moneda tiene su propio saldo.</p>
+</section>
+<section id="auth"><h2>Autenticación</h2><div class="box"><p>Las rutas protegidas esperan la cabecera <code>Authorization: Bearer &lt;token&gt;</code>. El token se obtiene con <code>POST /login</code>, caduca a los <b>3600 segundos</b> y después la API responde 401.</p></div>
+<h3>Cómo obtener credenciales</h3><p>Las credenciales (usuario y contraseña inicial) te las facilita el equipo de PLP al dar de alta tu empresa. Puede que se te pida cambiar la contraseña en el primer acceso (<code>POST /profile/password</code>). Si no las tienes, contacta con la persona indicada arriba.</p>
+<pre>BASE=http://localhost:8000
+TOKEN=$(curl -s -X POST "$BASE/login?user=tpv01" \
+  -H "Content-Type: application/json" \
+  -d '{"password":"mi-contrasena"}' | jq -r .token)</pre></section>
+<section id="errores"><h2>Gestión de errores</h2><p>Los errores devuelven JSON con <code>code</code>, <code>message</code> y, opcionalmente, <code>details</code>.</p>
+<pre>{"code":"INVALID_CREDENTIALS","message":"Usuario o contraseña incorrectos."}</pre>
+<table><tr><th>HTTP</th><th>Significado</th></tr><tr><td>400</td><td>Petición mal formada o parámetro inválido.</td></tr><tr><td>401</td><td>Token ausente, inválido o caducado.</td></tr><tr><td>403</td><td>El usuario no está vinculado a una empresa.</td></tr><tr><td>404</td><td>Recurso inexistente o identificador mal formado.</td></tr><tr><td>409</td><td>Conflicto con el estado actual.</td></tr><tr><td>422</td><td>Pago rechazado.</td></tr><tr><td>500</td><td>Error interno.</td></tr></table></section>
+<h2 style="margin-top:56px">Endpoints</h2><section id="Sesión"><h2>Sesión</h2><p class="lead">Inicio y cierre de sesión.</p><article id="POST-login"><h3><span class="m POST">POST</span><code>/login</code></h3><p>Inicia sesión y devuelve el token Bearer.</p><p class="au"><b>Autenticación:</b> Público</p><h4>Parámetros de consulta</h4><table><tr><th>Nombre</th><th>Tipo y rango</th><th>Oblig.</th><th>Descripción</th></tr><tr><td><code>user</code></td><td>string</td><td>sí</td><td>Nombre de usuario</td></tr></table><h4>Cuerpo (JSON)</h4><table><tr><th>Nombre</th><th>Tipo y rango</th><th>Oblig.</th><th>Descripción</th></tr><tr><td><code>password</code></td><td>string</td><td>sí</td><td>Contraseña del usuario</td></tr></table><pre>{
+  &quot;password&quot;: &quot;mi-contrasena&quot;
+}</pre><h4>Respuesta 200</h4><pre>{
+  &quot;token&quot;: &quot;eyJhbGciOi...&quot;,
+  &quot;token_type&quot;: &quot;Bearer&quot;,
+  &quot;expires_in&quot;: 3600,
+  &quot;user&quot;: {
+    &quot;id&quot;: &quot;usr_tpv01&quot;,
+    &quot;name&quot;: &quot;Laura Martínez&quot;,
+    &quot;role&quot;: &quot;comercio&quot;,
+    &quot;company_id&quot;: &quot;emp_001&quot;,
+    &quot;company_name&quot;: &quot;Comercio Ejemplo SL&quot;
+  }
+}</pre><h4>Errores</h4><table><tr><th>HTTP</th><th>Código</th><th>Cuándo</th></tr><tr><td>400</td><td><code>MISSING_USER</code></td><td>Falta el parámetro <code>user</code>.</td></tr><tr><td>401</td><td><code>INVALID_CREDENTIALS</code></td><td>Usuario inexistente o contraseña incorrecta.</td></tr></table><h4>Ejemplo</h4><pre>curl -X POST &quot;$BASE/login?user=tpv01&quot; \
+  -H &quot;Content-Type: application/json&quot; \
+  -d &#x27;{&quot;password&quot;: &quot;mi-contrasena&quot;}&#x27;</pre></article><article id="POST-logout"><h3><span class="m POST">POST</span><code>/logout</code></h3><p>Invalida el token de la sesión actual.</p><p class="au"><b>Autenticación:</b> Bearer (token de tu empresa)</p><h4>Respuesta 200</h4><pre>{
+  &quot;message&quot;: &quot;Sesión cerrada correctamente.&quot;
+}</pre><h4>Errores</h4><table><tr><th>HTTP</th><th>Código</th><th>Cuándo</th></tr><tr><td>401</td><td><code>—</code></td><td>Token ausente, inválido o caducado.</td></tr><tr><td>500</td><td><code>LOGOUT_ERROR</code></td><td>Error al cerrar la sesión.</td></tr></table><h4>Ejemplo</h4><pre>curl -X POST &quot;$BASE/logout&quot; \
+  -H &quot;Authorization: Bearer $TOKEN&quot;</pre></article></section><section id="Caja"><h2>Caja</h2><p class="lead">Retiradas, saldo y pagos.</p><article id="POST-withdraw"><h3><span class="m POST">POST</span><code>/withdraw</code></h3><p>Resta un importe del saldo de la empresa en la moneda indicada.</p><p class="au"><b>Autenticación:</b> Bearer · comercio (usuario vinculado a empresa)</p><h4>Parámetros de consulta</h4><table><tr><th>Nombre</th><th>Tipo y rango</th><th>Oblig.</th><th>Descripción</th></tr><tr><td><code>amount</code></td><td>number · ≥ 0.01, máx. 2 decimales, ≤ saldo</td><td>sí</td><td>Importe a retirar</td></tr><tr><td><code>currency</code></td><td>EUR, USD, GBP (por defecto EUR)</td><td>no</td><td>Moneda</td></tr></table><h4>Respuesta 200</h4><pre>{
+  &quot;withdrawn&quot;: 25.5,
+  &quot;currency&quot;: &quot;EUR&quot;,
+  &quot;balance&quot;: 1225.25
+}</pre><h4>Errores</h4><table><tr><th>HTTP</th><th>Código</th><th>Cuándo</th></tr><tr><td>400</td><td><code>INVALID_AMOUNT</code></td><td>Importe mal escrito o superior al saldo.</td></tr><tr><td>401</td><td><code>—</code></td><td>Token ausente, inválido o caducado.</td></tr><tr><td>403</td><td><code>FORBIDDEN</code></td><td>El usuario no está vinculado a una empresa.</td></tr></table><h4>Ejemplo</h4><pre>curl -X POST &quot;$BASE/withdraw?amount=25.5&quot; \
+  -H &quot;Authorization: Bearer $TOKEN&quot;</pre></article><article id="GET-balance"><h3><span class="m GET">GET</span><code>/balance</code></h3><p>Consulta el saldo por moneda de la empresa autenticada.</p><p class="au"><b>Autenticación:</b> Bearer · comercio (usuario vinculado a empresa)</p><h4>Respuesta 200</h4><pre>{
+  &quot;company&quot;: &quot;Comercio Ejemplo SL&quot;,
+  &quot;balances&quot;: [
+    {
+      &quot;currency&quot;: &quot;EUR&quot;,
+      &quot;amount&quot;: 1000.0
+    }
+  ]
+}</pre><h4>Errores</h4><table><tr><th>HTTP</th><th>Código</th><th>Cuándo</th></tr><tr><td>401</td><td><code>—</code></td><td>Token ausente, inválido o caducado.</td></tr><tr><td>403</td><td><code>FORBIDDEN</code></td><td>El usuario no está vinculado a una empresa.</td></tr></table><h4>Ejemplo</h4><pre>curl -X GET &quot;$BASE/balance&quot; \
+  -H &quot;Authorization: Bearer $TOKEN&quot;</pre></article><article id="POST-pay"><h3><span class="m POST">POST</span><code>/pay</code></h3><p>Registra y procesa un pago a partir del ticket del cuerpo, en la moneda indicada (EUR por defecto).</p><p class="au"><b>Autenticación:</b> Bearer · comercio (usuario vinculado a empresa)</p><h4>Cuerpo (JSON)</h4><table><tr><th>Nombre</th><th>Tipo y rango</th><th>Oblig.</th><th>Descripción</th></tr><tr><td><code>total_amount</code></td><td>number · ≥ 0, máx. 2 decimales</td><td>sí</td><td>Importe total del pago</td></tr><tr><td><code>currency</code></td><td>EUR, USD, GBP (por defecto EUR)</td><td>no</td><td>Moneda del pago</td></tr><tr><td><code>payment_method</code></td><td>card, cash, transfer</td><td>sí</td><td>Tipo de pago</td></tr><tr><td><code>products</code></td><td>array · mínimo 1 elemento</td><td>sí</td><td>Cada elemento: product_id (string), name (string), quantity (entero ≥ 1) y unit_price (number ≥ 0, 2 decimales)</td></tr><tr><td><code>payment_data</code></td><td>object</td><td>sí</td><td>Datos del pago según el método: card_number, expiry, cvv, holder o iban</td></tr></table><pre>{
+  &quot;total_amount&quot;: 12.5,
+  &quot;currency&quot;: &quot;EUR&quot;,
+  &quot;payment_method&quot;: &quot;card&quot;,
+  &quot;products&quot;: [
+    {
+      &quot;product_id&quot;: &quot;P-123&quot;,
+      &quot;name&quot;: &quot;Café&quot;,
+      &quot;quantity&quot;: 2,
+      &quot;unit_price&quot;: 1.5
+    }
+  ],
+  &quot;payment_data&quot;: {
+    &quot;card_number&quot;: &quot;4111111111111111&quot;,
+    &quot;expiry&quot;: &quot;12/28&quot;,
+    &quot;cvv&quot;: &quot;123&quot;,
+    &quot;holder&quot;: &quot;J. Pérez&quot;
+  }
+}</pre><h4>Respuesta 200</h4><pre>{
+  &quot;transaction_id&quot;: &quot;txn_8f14e45fceea167a&quot;,
+  &quot;status&quot;: &quot;approved&quot;,
+  &quot;authorized_amount&quot;: 12.5,
+  &quot;currency&quot;: &quot;EUR&quot;,
+  &quot;balance&quot;: 1262.5
+}</pre><h4>Errores</h4><table><tr><th>HTTP</th><th>Código</th><th>Cuándo</th></tr><tr><td>400</td><td><code>MALFORMED_BODY</code></td><td>Cuerpo mal formado o moneda no admitida.</td></tr><tr><td>401</td><td><code>—</code></td><td>Token ausente, inválido o caducado.</td></tr><tr><td>403</td><td><code>FORBIDDEN</code></td><td>El usuario no está vinculado a una empresa.</td></tr><tr><td>422</td><td><code>PAYMENT_REJECTED</code></td><td>Pago rechazado; no se abona al saldo.</td></tr><tr><td>500</td><td><code>PAYMENT_ERROR</code></td><td>Error interno al procesar el pago.</td></tr></table><h4>Ejemplo</h4><pre>curl -X POST &quot;$BASE/pay&quot; \
+  -H &quot;Authorization: Bearer $TOKEN&quot; \
+  -H &quot;Content-Type: application/json&quot; \
+  -d &#x27;{&quot;total_amount&quot;: 12.5, &quot;currency&quot;: &quot;EUR&quot;, &quot;payment_method&quot;: &quot;card&quot;, &quot;products&quot;: [{&quot;product_id&quot;: &quot;P-123&quot;, &quot;name&quot;: &quot;Café&quot;, &quot;quantity&quot;: 2, &quot;unit_price&quot;: 1.5}], &quot;payment_data&quot;: {&quot;card_number&quot;: &quot;4111111111111111&quot;, &quot;expiry&quot;: &quot;12/28&quot;, &quot;cvv&quot;: &quot;123&quot;, &quot;holder&quot;: &quot;J. Pérez&quot;}}&#x27;</pre></article></section><section id="Reembolsos"><h2>Reembolsos</h2><p class="lead">Solicitud, aceptación, rechazo y consulta.</p><article id="POST-refunds-request"><h3><span class="m POST">POST</span><code>/refunds/request</code></h3><p>Solicita el reembolso de una transacción de la empresa.</p><p class="au"><b>Autenticación:</b> Bearer · comercio (usuario vinculado a empresa)</p><h4>Parámetros de consulta</h4><table><tr><th>Nombre</th><th>Tipo y rango</th><th>Oblig.</th><th>Descripción</th></tr><tr><td><code>transaction_id</code></td><td>UUID</td><td>sí</td><td>Identificador de la transacción</td></tr><tr><td><code>reason</code></td><td>string · máx. 200</td><td>no</td><td>Motivo de la devolución</td></tr></table><h4>Respuesta 202</h4><pre>{
+  &quot;request_id&quot;: &quot;req_21b3d9&quot;,
+  &quot;transaction_id&quot;: &quot;txn_8f14e45fceea167a&quot;,
+  &quot;status&quot;: &quot;pending&quot;
+}</pre><h4>Errores</h4><table><tr><th>HTTP</th><th>Código</th><th>Cuándo</th></tr><tr><td>400</td><td><code>PAYMENT_NOT_REFUNDABLE</code></td><td>El pago no está aprobado.</td></tr><tr><td>401</td><td><code>—</code></td><td>Token ausente, inválido o caducado.</td></tr><tr><td>403</td><td><code>FORBIDDEN</code></td><td>El usuario no está vinculado a una empresa.</td></tr><tr><td>404</td><td><code>TRANSACTION_NOT_FOUND</code></td><td>La transacción no existe, no es de la empresa o el UUID es inválido.</td></tr><tr><td>409</td><td><code>REFUND_ALREADY_PENDING</code></td><td>Ya hay una devolución pendiente.</td></tr></table><h4>Ejemplo</h4><pre>curl -X POST &quot;$BASE/refunds/request?transaction_id=8f14e45f-ceea-467a-9c1e-2b3c4d5e6f70&quot; \
+  -H &quot;Authorization: Bearer $TOKEN&quot;</pre></article><article id="POST-refunds-accept"><h3><span class="m POST">POST</span><code>/refunds/accept</code></h3><p>Acepta un reembolso y descuenta el saldo.</p><p class="au"><b>Autenticación:</b> Bearer · comercio (usuario vinculado a empresa)</p><h4>Parámetros de consulta</h4><table><tr><th>Nombre</th><th>Tipo y rango</th><th>Oblig.</th><th>Descripción</th></tr><tr><td><code>id</code></td><td>UUID</td><td>sí</td><td>Identificador de la devolución</td></tr></table><h4>Respuesta 200</h4><pre>{
+  &quot;refund&quot;: {
+    &quot;id&quot;: &quot;ref_001&quot;,
+    &quot;transaction_id&quot;: &quot;txn_8f14e45fceea167a&quot;,
+    &quot;reference&quot;: &quot;P-1048&quot;,
+    &quot;client&quot;: &quot;Lucía García&quot;,
+    &quot;amount&quot;: 12.5,
+    &quot;currency&quot;: &quot;EUR&quot;,
+    &quot;status&quot;: &quot;accepted&quot;,
+    &quot;reason&quot;: &quot;Producto defectuoso&quot;,
+    &quot;created_at&quot;: &quot;2026-11-17T10:30:00Z&quot;
+  },
+  &quot;balance&quot;: 1207.5
+}</pre><h4>Errores</h4><table><tr><th>HTTP</th><th>Código</th><th>Cuándo</th></tr><tr><td>400</td><td><code>—</code></td><td>Petición mal formada.</td></tr><tr><td>401</td><td><code>—</code></td><td>Token ausente, inválido o caducado.</td></tr><tr><td>403</td><td><code>FORBIDDEN</code></td><td>El usuario no está vinculado a una empresa.</td></tr><tr><td>404</td><td><code>—</code></td><td>La devolución no existe o no es de la empresa.</td></tr></table><h4>Ejemplo</h4><pre>curl -X POST &quot;$BASE/refunds/accept?id=3f0b0a4e-8f0b-4f7a-9b4e-1c2d3e4f5a6b&quot; \
+  -H &quot;Authorization: Bearer $TOKEN&quot;</pre></article><article id="POST-refunds-reject"><h3><span class="m POST">POST</span><code>/refunds/reject</code></h3><p>Rechaza un reembolso.</p><p class="au"><b>Autenticación:</b> Bearer · comercio (usuario vinculado a empresa)</p><h4>Parámetros de consulta</h4><table><tr><th>Nombre</th><th>Tipo y rango</th><th>Oblig.</th><th>Descripción</th></tr><tr><td><code>id</code></td><td>UUID</td><td>sí</td><td>Identificador de la devolución</td></tr></table><h4>Respuesta 200</h4><pre>{
+  &quot;refund&quot;: {
+    &quot;id&quot;: &quot;ref_001&quot;,
+    &quot;transaction_id&quot;: &quot;txn_8f14e45fceea167a&quot;,
+    &quot;reference&quot;: &quot;P-1048&quot;,
+    &quot;client&quot;: &quot;Lucía García&quot;,
+    &quot;amount&quot;: 12.5,
+    &quot;currency&quot;: &quot;EUR&quot;,
+    &quot;status&quot;: &quot;rejected&quot;,
+    &quot;reason&quot;: &quot;Producto defectuoso&quot;,
+    &quot;created_at&quot;: &quot;2026-11-17T10:30:00Z&quot;
+  },
+  &quot;balance&quot;: 1220.0
+}</pre><h4>Errores</h4><table><tr><th>HTTP</th><th>Código</th><th>Cuándo</th></tr><tr><td>400</td><td><code>—</code></td><td>Petición mal formada.</td></tr><tr><td>401</td><td><code>—</code></td><td>Token ausente, inválido o caducado.</td></tr><tr><td>403</td><td><code>FORBIDDEN</code></td><td>El usuario no está vinculado a una empresa.</td></tr><tr><td>404</td><td><code>—</code></td><td>La devolución no existe o no es de la empresa.</td></tr></table><h4>Ejemplo</h4><pre>curl -X POST &quot;$BASE/refunds/reject?id=3f0b0a4e-8f0b-4f7a-9b4e-1c2d3e4f5a6b&quot; \
+  -H &quot;Authorization: Bearer $TOKEN&quot;</pre></article><article id="GET-refunds"><h3><span class="m GET">GET</span><code>/refunds</code></h3><p>Lista los reembolsos de la empresa autenticada.</p><p class="au"><b>Autenticación:</b> Bearer · comercio (usuario vinculado a empresa)</p><h4>Respuesta 200</h4><pre>[
+  {
+    &quot;id&quot;: &quot;ref_001&quot;,
+    &quot;transaction_id&quot;: &quot;txn_8f14e45fceea167a&quot;,
+    &quot;reference&quot;: &quot;P-1048&quot;,
+    &quot;client&quot;: &quot;Lucía García&quot;,
+    &quot;amount&quot;: 12.5,
+    &quot;currency&quot;: &quot;EUR&quot;,
+    &quot;status&quot;: &quot;pending&quot;,
+    &quot;reason&quot;: &quot;Producto defectuoso&quot;,
+    &quot;created_at&quot;: &quot;2026-11-17T10:30:00Z&quot;
+  }
+]</pre><h4>Errores</h4><table><tr><th>HTTP</th><th>Código</th><th>Cuándo</th></tr><tr><td>401</td><td><code>—</code></td><td>Token ausente, inválido o caducado.</td></tr><tr><td>403</td><td><code>FORBIDDEN</code></td><td>El usuario no está vinculado a una empresa.</td></tr></table><h4>Ejemplo</h4><pre>curl -X GET &quot;$BASE/refunds&quot; \
+  -H &quot;Authorization: Bearer $TOKEN&quot;</pre></article></section><section id="Pagos"><h2>Pagos</h2><p class="lead">Consulta de pagos efectuados.</p><article id="GET-payments"><h3><span class="m GET">GET</span><code>/payments</code></h3><p>Lista los pagos de la empresa autenticada.</p><p class="au"><b>Autenticación:</b> Bearer · comercio (usuario vinculado a empresa)</p><h4>Respuesta 200</h4><pre>[
+  {
+    &quot;transaction_id&quot;: &quot;8f14e45f-ceea-467a-9c1e-2b3c4d5e6f70&quot;,
+    &quot;client&quot;: &quot;Lucía García&quot;,
+    &quot;reference&quot;: &quot;P-1048&quot;,
+    &quot;concept&quot;: &quot;Compra LH-F2026-1048&quot;,
+    &quot;amount&quot;: 12.5,
+    &quot;currency&quot;: &quot;EUR&quot;,
+    &quot;payment_method&quot;: &quot;card&quot;,
+    &quot;status&quot;: &quot;approved&quot;,
+    &quot;reason&quot;: &quot;Pago correcto&quot;
+  }
+]</pre><h4>Errores</h4><table><tr><th>HTTP</th><th>Código</th><th>Cuándo</th></tr><tr><td>401</td><td><code>—</code></td><td>Token ausente, inválido o caducado.</td></tr><tr><td>403</td><td><code>FORBIDDEN</code></td><td>El usuario no está vinculado a una empresa.</td></tr></table><h4>Ejemplo</h4><pre>curl -X GET &quot;$BASE/payments&quot; \
+  -H &quot;Authorization: Bearer $TOKEN&quot;</pre></article></section><section id="Tickets"><h2>Tickets</h2><p class="lead">Consulta con el equipo de soporte de PLP.</p><article id="POST-ticket-add"><h3><span class="m POST">POST</span><code>/ticket/add</code></h3><p>Abre un ticket de soporte para tu empresa (se deduce del token).</p><p class="au"><b>Autenticación:</b> Bearer (token de tu empresa)</p><h4>Cuerpo (JSON)</h4><table><tr><th>Nombre</th><th>Tipo y rango</th><th>Oblig.</th><th>Descripción</th></tr><tr><td><code>subject</code></td><td>string · máx. 140 caracteres</td><td>sí</td><td>Asunto del ticket</td></tr><tr><td><code>description</code></td><td>string</td><td>no</td><td>Descripción de la incidencia</td></tr><tr><td><code>status</code></td><td>open, in_progress, closed (por defecto open)</td><td>no</td><td>Estado inicial</td></tr></table><pre>{
+  &quot;subject&quot;: &quot;Pago rechazado en checkout&quot;,
+  &quot;description&quot;: &quot;No puedo completar el cobro.&quot;
+}</pre><h4>Respuesta 200</h4><pre>{
+  &quot;id&quot;: &quot;1086&quot;,
+  &quot;company_id&quot;: &quot;9a7c1d2e-3f4b-5c6d-7e8f-901a2b3c4d5e&quot;,
+  &quot;company_name&quot;: &quot;Librería Horizonte&quot;,
+  &quot;subject&quot;: &quot;Pago rechazado en checkout&quot;,
+  &quot;status&quot;: &quot;open&quot;,
+  &quot;created_at&quot;: &quot;2026-11-17T10:30:00Z&quot;,
+  &quot;messages&quot;: []
+}</pre><h4>Errores</h4><table><tr><th>HTTP</th><th>Código</th><th>Cuándo</th></tr><tr><td>400</td><td><code>—</code></td><td>Cuerpo mal formado.</td></tr><tr><td>401</td><td><code>—</code></td><td>Token ausente, inválido o caducado.</td></tr></table><h4>Ejemplo</h4><pre>curl -X POST &quot;$BASE/ticket/add&quot; \
+  -H &quot;Authorization: Bearer $TOKEN&quot; \
+  -H &quot;Content-Type: application/json&quot; \
+  -d &#x27;{&quot;subject&quot;: &quot;Pago rechazado en checkout&quot;, &quot;description&quot;: &quot;No puedo completar el cobro.&quot;}&#x27;</pre></article><article id="POST-ticket-message"><h3><span class="m POST">POST</span><code>/ticket/message</code></h3><p>Añade un mensaje a la conversación del ticket. Sólo puedes escribir en los tickets de tu empresa.</p><p class="au"><b>Autenticación:</b> Bearer (token de tu empresa)</p><h4>Parámetros de consulta</h4><table><tr><th>Nombre</th><th>Tipo y rango</th><th>Oblig.</th><th>Descripción</th></tr><tr><td><code>id</code></td><td>string numérica</td><td>sí</td><td>Número del ticket</td></tr></table><h4>Cuerpo (JSON)</h4><table><tr><th>Nombre</th><th>Tipo y rango</th><th>Oblig.</th><th>Descripción</th></tr><tr><td><code>message</code></td><td>string · máx. 1000 caracteres</td><td>sí</td><td>Texto del mensaje</td></tr></table><pre>{
+  &quot;message&quot;: &quot;Gracias, todo aclarado.&quot;
+}</pre><h4>Respuesta 200</h4><pre>{
+  &quot;id&quot;: &quot;1086&quot;,
+  &quot;company_id&quot;: &quot;9a7c1d2e-3f4b-5c6d-7e8f-901a2b3c4d5e&quot;,
+  &quot;company_name&quot;: &quot;Librería Horizonte&quot;,
+  &quot;subject&quot;: &quot;Pago rechazado en checkout&quot;,
+  &quot;status&quot;: &quot;open&quot;,
+  &quot;created_at&quot;: &quot;2026-11-17T10:30:00Z&quot;,
+  &quot;messages&quot;: []
+}</pre><h4>Errores</h4><table><tr><th>HTTP</th><th>Código</th><th>Cuándo</th></tr><tr><td>400</td><td><code>—</code></td><td>Cuerpo mal formado.</td></tr><tr><td>401</td><td><code>—</code></td><td>Token ausente, inválido o caducado.</td></tr><tr><td>404</td><td><code>TICKET_NOT_FOUND</code></td><td>No existe o no pertenece a tu empresa.</td></tr></table><h4>Ejemplo</h4><pre>curl -X POST &quot;$BASE/ticket/message?id=1086&quot; \
+  -H &quot;Authorization: Bearer $TOKEN&quot; \
+  -H &quot;Content-Type: application/json&quot; \
+  -d &#x27;{&quot;message&quot;: &quot;Gracias, todo aclarado.&quot;}&#x27;</pre></article><article id="GET-tickets"><h3><span class="m GET">GET</span><code>/tickets</code></h3><p>Lista los tickets de tu empresa.</p><p class="au"><b>Autenticación:</b> Bearer (token de tu empresa)</p><h4>Respuesta 200</h4><pre>[
+  {
+    &quot;id&quot;: &quot;1086&quot;,
+    &quot;company_id&quot;: &quot;9a7c1d2e-3f4b-5c6d-7e8f-901a2b3c4d5e&quot;,
+    &quot;company_name&quot;: &quot;Librería Horizonte&quot;,
+    &quot;subject&quot;: &quot;Pago rechazado en checkout&quot;,
+    &quot;status&quot;: &quot;open&quot;,
+    &quot;created_at&quot;: &quot;2026-11-17T10:30:00Z&quot;,
+    &quot;messages&quot;: []
+  }
+]</pre><h4>Errores</h4><table><tr><th>HTTP</th><th>Código</th><th>Cuándo</th></tr><tr><td>401</td><td><code>—</code></td><td>Token ausente, inválido o caducado.</td></tr></table><h4>Ejemplo</h4><pre>curl -X GET &quot;$BASE/tickets&quot; \
+  -H &quot;Authorization: Bearer $TOKEN&quot;</pre></article></section><section id="Perfil"><h2>Perfil</h2><p class="lead">Perfil y contraseña del usuario autenticado.</p><article id="GET-profile"><h3><span class="m GET">GET</span><code>/profile</code></h3><p>Consulta tu perfil y los datos de tu empresa.</p><p class="au"><b>Autenticación:</b> Bearer (token de tu empresa)</p><h4>Respuesta 200</h4><pre>{
+  &quot;id&quot;: &quot;3&quot;,
+  &quot;name&quot;: &quot;Laura Martínez&quot;,
+  &quot;email&quot;: &quot;laura.martinez@plp.es&quot;,
+  &quot;username&quot;: &quot;lmartinez&quot;,
+  &quot;role&quot;: &quot;comercio&quot;,
+  &quot;status&quot;: &quot;Activo&quot;,
+  &quot;company&quot;: {
+    &quot;id&quot;: &quot;9a7c1d2e-3f4b-5c6d-7e8f-901a2b3c4d5e&quot;,
+    &quot;nombre&quot;: &quot;Librería Horizonte&quot;,
+    &quot;status&quot;: &quot;activo&quot;,
+    &quot;cif&quot;: &quot;B12345678&quot;,
+    &quot;ciudad&quot;: &quot;Madrid&quot;
+  }
+}</pre><h4>Errores</h4><table><tr><th>HTTP</th><th>Código</th><th>Cuándo</th></tr><tr><td>401</td><td><code>—</code></td><td>Token ausente, inválido o caducado.</td></tr></table><h4>Ejemplo</h4><pre>curl -X GET &quot;$BASE/profile&quot; \
+  -H &quot;Authorization: Bearer $TOKEN&quot;</pre></article><article id="PUT-profile"><h3><span class="m PUT">PUT</span><code>/profile</code></h3><p>Actualiza el perfil.</p><p class="au"><b>Autenticación:</b> Bearer (token de tu empresa)</p><h4>Cuerpo (JSON)</h4><table><tr><th>Nombre</th><th>Tipo y rango</th><th>Oblig.</th><th>Descripción</th></tr><tr><td><code>name</code></td><td>string</td><td>no</td><td>Nombre del usuario</td></tr><tr><td><code>email</code></td><td>email</td><td>no</td><td>Correo electrónico</td></tr><tr><td><code>nombre, razon_social, cif, tipo_empresa, actividad_economica, direccion, codigo_postal, ciudad, provincia, pais, telefono, web</code></td><td>string</td><td>no</td><td>Datos de la empresa; todos opcionales</td></tr></table><pre>{
+  &quot;name&quot;: &quot;Laura M. Martínez&quot;,
+  &quot;email&quot;: &quot;laura@plp.es&quot;
+}</pre><h4>Respuesta 200</h4><pre>{
+  &quot;id&quot;: &quot;3&quot;,
+  &quot;name&quot;: &quot;Laura Martínez&quot;,
+  &quot;email&quot;: &quot;laura.martinez@plp.es&quot;,
+  &quot;username&quot;: &quot;lmartinez&quot;,
+  &quot;role&quot;: &quot;comercio&quot;,
+  &quot;status&quot;: &quot;Activo&quot;,
+  &quot;company&quot;: {
+    &quot;id&quot;: &quot;9a7c1d2e-3f4b-5c6d-7e8f-901a2b3c4d5e&quot;,
+    &quot;nombre&quot;: &quot;Librería Horizonte&quot;,
+    &quot;status&quot;: &quot;activo&quot;,
+    &quot;cif&quot;: &quot;B12345678&quot;,
+    &quot;ciudad&quot;: &quot;Madrid&quot;
+  }
+}</pre><h4>Errores</h4><table><tr><th>HTTP</th><th>Código</th><th>Cuándo</th></tr><tr><td>400</td><td><code>—</code></td><td>Cuerpo mal formado.</td></tr><tr><td>401</td><td><code>—</code></td><td>Token ausente, inválido o caducado.</td></tr></table><h4>Ejemplo</h4><pre>curl -X PUT &quot;$BASE/profile&quot; \
+  -H &quot;Authorization: Bearer $TOKEN&quot; \
+  -H &quot;Content-Type: application/json&quot; \
+  -d &#x27;{&quot;name&quot;: &quot;Laura M. Martínez&quot;, &quot;email&quot;: &quot;laura@plp.es&quot;}&#x27;</pre></article><article id="POST-profile-password"><h3><span class="m POST">POST</span><code>/profile/password</code></h3><p>Cambia la contraseña.</p><p class="au"><b>Autenticación:</b> Bearer (token de tu empresa)</p><h4>Cuerpo (JSON)</h4><table><tr><th>Nombre</th><th>Tipo y rango</th><th>Oblig.</th><th>Descripción</th></tr><tr><td><code>current_password</code></td><td>string</td><td>sí</td><td>Contraseña actual</td></tr><tr><td><code>new_password</code></td><td>string · mínimo 8 caracteres</td><td>sí</td><td>Nueva contraseña</td></tr></table><pre>{
+  &quot;current_password&quot;: &quot;comercio&quot;,
+  &quot;new_password&quot;: &quot;NuevaClave123&quot;
+}</pre><h4>Respuesta 200</h4><pre>{
+  &quot;message&quot;: &quot;Contraseña actualizada.&quot;
+}</pre><h4>Errores</h4><table><tr><th>HTTP</th><th>Código</th><th>Cuándo</th></tr><tr><td>400</td><td><code>—</code></td><td>Contraseña actual incorrecta o nueva inválida.</td></tr><tr><td>401</td><td><code>—</code></td><td>Token ausente, inválido o caducado.</td></tr></table><h4>Ejemplo</h4><pre>curl -X POST &quot;$BASE/profile/password&quot; \
+  -H &quot;Authorization: Bearer $TOKEN&quot; \
+  -H &quot;Content-Type: application/json&quot; \
+  -d &#x27;{&quot;current_password&quot;: &quot;comercio&quot;, &quot;new_password&quot;: &quot;NuevaClave123&quot;}&#x27;</pre></article></section>
+<p class="lead" style="margin-top:56px">En los ejemplos, <code>$BASE</code> es la URL base y <code>$TOKEN</code> el token obtenido en el login.</p></main></body></html>
